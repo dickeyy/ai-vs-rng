@@ -5,15 +5,16 @@ import (
 	"os"
 
 	"github.com/dickeyy/cis-320/services"
+	"github.com/dickeyy/cis-320/utils"
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 var (
-	debug   bool = false
-	devMode bool = false
-	agent   string
+	debug     bool = false
+	devMode   bool = false
+	agentType string
 )
 
 func init() {
@@ -51,19 +52,18 @@ func parseFlags() {
 	if len(args) == 0 {
 		log.Fatal().Msg("No agent specified. Use '--help' for usage.")
 	}
-	agent = args[0]
-
+	agentType = args[0]
 }
 
 func main() {
 	parseFlags()
 	initLogger(debug)
 
-	log.Info().Msg("Starting AI Stock Market Challenge")
+	log.Info().Msg("Starting program")
 	log.Debug().Msg("Debug mode enabled")
-	log.Info().Msgf("Using agent: %s", agent)
+	log.Info().Msgf("Using agent: %s", agentType)
 
-	// Initialize services
+	// init alpaca
 	err := services.InitializeAlpaca()
 	if err != nil {
 		log.Fatal().Msgf("Error initializing Alpaca: %v", err)
@@ -71,9 +71,17 @@ func main() {
 	log.Info().Msg("Alpaca client initialized")
 	log.Info().Msgf("Using Alpaca account %+v", services.AlpacaAccount.AccountNumber)
 
+	// init redis
 	err = services.InitializeRedis()
 	if err != nil {
 		log.Fatal().Msgf("Error initializing Redis: %v", err)
 	}
 	log.Info().Msg("Redis client initialized")
+
+	// parse symbols
+	symbols, err := utils.ParseSymbols()
+	if err != nil {
+		log.Fatal().Msgf("Error parsing symbols: %v", err)
+	}
+	log.Info().Msgf("Parsed %d symbols", len(symbols))
 }

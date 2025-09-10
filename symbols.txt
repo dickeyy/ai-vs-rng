@@ -1,0 +1,4 @@
+NVDA
+AMD
+TSLA
+MSFT
