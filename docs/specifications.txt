@@ -1,0 +1,4 @@
+Specifications:
+
+- One binary, user specifies which agent to use
+- High level of monitoring and logging. The program needs to be able to run for a long time reliably, crashing is not an option.

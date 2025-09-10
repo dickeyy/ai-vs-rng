@@ -17,7 +17,7 @@ This project explores the efficacy of various trading strategies in a simulated 
 
 ## Tech Stack
 
-- Main language: [Go](https://go.dev/)
+- Main language: [Go v1.24.1](https://go.dev/)
 - Stock market API: [Alpaca](https://alpaca.markets/)
   - SDK: [alpaca-trade-api-go](https://github.com/alpacahq/alpaca-trade-api-go/)
 - Database: Postgres + Redis
@@ -28,6 +28,18 @@ This project explores the efficacy of various trading strategies in a simulated 
 ## Installation
 
 ## Usage
+
+Run the binary and specify which "agent" to use.
+
+```bash
+./cis-320 <agent>
+```
+
+Available agents:
+
+- `random`
+- `llm`
+- `llm-human`
 
 ## License
 
