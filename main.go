@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/dickeyy/cis-320/agent"
+	"github.com/dickeyy/cis-320/broker"
 	"github.com/dickeyy/cis-320/services"
+	"github.com/dickeyy/cis-320/types"
 	"github.com/dickeyy/cis-320/utils"
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
@@ -12,57 +18,44 @@ import (
 )
 
 var (
-	debug     bool = false
-	devMode   bool = false
-	agentType string
+	debug   bool = false
+	devMode bool = false
 )
-
-func init() {
-	err := godotenv.Load(".env.local")
-	if err != nil {
-		log.Fatal().Msg("Error loading .env file")
-	}
-}
-
-func initLogger(debug bool) {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	if debug {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	}
-}
 
 func parseFlags() {
 	d := flag.Bool("debug", false, "enable debug mode")
 	dev := flag.Bool("dev", false, "enable development mode (frequent trading for testing)")
 	flag.Usage = func() {
 		os.Stderr.WriteString("Usage: " + os.Args[0] + " [OPTIONS] <agent_type>\n")
-		os.Stderr.WriteString("Example: " + os.Args[0] + " --debug --dev RNG\n")
+		os.Stderr.WriteString("Example: " + os.Args[0] + " --debug --dev\n")
 		os.Stderr.WriteString("\nOptions:\n")
 		flag.PrintDefaults()
-		os.Stderr.WriteString("\nAvailable agent types: RNG, LLM_Self, LLM_Human\n")
-		os.Stderr.WriteString("\nDev mode: Ignores market hours, trades every 30 seconds, higher frequency limits\n")
 	}
 	flag.Parse()
 	debug = *d
 	devMode = *dev
-
-	args := flag.Args()
-	if len(args) == 0 {
-		log.Fatal().Msg("No agent specified. Use '--help' for usage.")
-	}
-	agentType = args[0]
 }
 
-func main() {
+func init() {
 	parseFlags()
-	initLogger(debug)
 
-	log.Info().Msg("Starting program")
-	log.Debug().Msg("Debug mode enabled")
-	log.Info().Msgf("Using agent: %s", agentType)
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	if debug {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	} else {
+		log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
+	}
 
+	err := godotenv.Load(".env.local")
+	if err != nil {
+		log.Fatal().Msg("Error loading .env file")
+	}
+}
+
+func initializeServices() {
 	// init alpaca
 	err := services.InitializeAlpaca()
 	if err != nil {
@@ -78,10 +71,61 @@ func main() {
 	}
 	log.Info().Msg("Redis client initialized")
 
+	// init database
+	err = services.InitializeDatabase()
+	if err != nil {
+		log.Fatal().Msgf("Error initializing database: %v", err)
+	}
+	log.Info().Msg("Database client initialized")
+}
+
+func initializeAgents(tradeBroker *broker.Broker) []types.Agent {
 	// parse symbols
 	symbols, err := utils.ParseSymbols()
 	if err != nil {
 		log.Fatal().Msgf("Error parsing symbols: %v", err)
 	}
 	log.Info().Msgf("Parsed %d symbols", len(symbols))
+
+	rngAgent := agent.NewRNGAgent("RNG_Agent", symbols)
+	rngAgent.SetBroker(tradeBroker)
+	agentsToStart := []types.Agent{rngAgent}
+	return agentsToStart
+}
+
+func main() {
+	log.Info().Msg("Starting program")
+	if debug {
+		log.Debug().Msg("Debug mode enabled")
+	}
+	if devMode {
+		log.Info().Msg("Dev mode enabled")
+	}
+
+	// initialize services
+	initializeServices()
+
+	// Initialize broker
+	tradeBroker := broker.NewBroker()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start the broker's trade processing
+	tradeBroker.ProcessTrades(ctx)
+
+	// initialize agents and pass the broker
+	agents := initializeAgents(tradeBroker)
+
+	agent.StartAgents(agents)
+
+	// stay alive until the program is interrupted
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
+	<-done
+
+	log.Warn().Msg("Shutting down program")
+	for _, agent := range agents {
+		agent.Stop(ctx)
+	}
+	log.Warn().Msg("Agents stopped")
 }
