@@ -10,7 +10,7 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Issue: In real mode, only `Price` and `Quantity` are set after fill; `Amount` is not recomputed. `agent.updateHoldings` expects all three.
   - Proposed fix: After an order fills (or partially fills), set `trade.Amount = price * qty` using `decimal` multiplication, not float math.
 
-- [ ] Handle partial fills as success (with filled values)
+- [x] Handle partial fills as success (with filled values)
 
   - Files: `services/alpaca.go` (`PlaceOrder`)
   - Issue: Polling loop only exits on `status == "filled"`; ignores `partially_filled` terminal-ish case close to timeout.

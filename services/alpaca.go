@@ -68,6 +68,8 @@ func PlaceOrder(trade *types.Trade) (*types.Trade, error) {
 
 		// Poll until the order reaches a terminal state (preferably filled)
 		deadline := time.Now().Add(15 * time.Second)
+		partialSeenAt := time.Time{}
+		partialGrace := 3 * time.Second
 		for {
 			if order.Status == "filled" {
 				// update the trade object with the market data
@@ -80,10 +82,36 @@ func PlaceOrder(trade *types.Trade) (*types.Trade, error) {
 				}
 				return trade, nil
 			}
+
+			// If the order is partially filled, allow a short grace window to complete
+			// then accept the partial fill if there is a non-zero filled quantity
+			if order.Status == "partially_filled" {
+				if partialSeenAt.IsZero() {
+					partialSeenAt = time.Now()
+				} else if time.Since(partialSeenAt) >= partialGrace && order.FilledQty.GreaterThan(decimal.Zero) {
+					trade.Price = order.FilledAvgPrice
+					trade.Quantity = &order.FilledQty
+					if trade.Price != nil && trade.Quantity != nil {
+						amt := trade.Price.Mul(*trade.Quantity)
+						trade.Amount = &amt
+					}
+					return trade, nil
+				}
+			}
 			if order.Status == "canceled" || order.Status == "rejected" || order.Status == "expired" {
 				return nil, fmt.Errorf("order %s ended with status %s", order.ID, order.Status)
 			}
 			if time.Now().After(deadline) {
+				// On timeout, accept partial fills if any shares were executed
+				if order.FilledQty.GreaterThan(decimal.Zero) {
+					trade.Price = order.FilledAvgPrice
+					trade.Quantity = &order.FilledQty
+					if trade.Price != nil && trade.Quantity != nil {
+						amt := trade.Price.Mul(*trade.Quantity)
+						trade.Amount = &amt
+					}
+					return trade, nil
+				}
 				return nil, fmt.Errorf("timeout waiting for order %s to fill; last status %s", order.ID, order.Status)
 			}
 			time.Sleep(500 * time.Millisecond)
