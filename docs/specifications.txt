@@ -1,8 +1,5 @@
 Specifications:
 
-- One binary, user specifies which agent to use
-- High level of monitoring and logging. The program needs to be able to run for a long time reliably, crashing is not an option.
-
 - after each trade, the agent will update its basic stats (total trades, cash balance) and save them to redis
 - at market close each night, each agent will calculate its FULL stats and save them to redis
 

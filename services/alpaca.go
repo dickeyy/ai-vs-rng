@@ -19,10 +19,27 @@ var (
 func SetDevMode(on bool) { devMode = on }
 
 func InitializeAlpaca() error {
+	// In dev mode, allow running without contacting Alpaca
+	if devMode {
+		Alpaca = nil
+		AlpacaAccount = &a.Account{AccountNumber: "DEV-MODE"}
+		return nil
+	}
+
+	apiKey := os.Getenv("ALPACA_KEY")
+	apiSecret := os.Getenv("ALPACA_SECRET")
+	baseURL := os.Getenv("ALPACA_API")
+	if baseURL == "" {
+		baseURL = "https://paper-api.alpaca.markets"
+	}
+	if apiKey == "" || apiSecret == "" {
+		return fmt.Errorf("ALPACA_KEY and ALPACA_SECRET must be set for live mode")
+	}
+
 	Alpaca = a.NewClient(a.ClientOpts{
-		APIKey:    os.Getenv("ALPACA_KEY"),
-		APISecret: os.Getenv("ALPACA_SECRET"),
-		BaseURL:   os.Getenv("ALPACA_API"),
+		APIKey:    apiKey,
+		APISecret: apiSecret,
+		BaseURL:   baseURL,
 	})
 	acct, err := Alpaca.GetAccount()
 	if err != nil {
