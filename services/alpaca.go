@@ -73,6 +73,11 @@ func PlaceOrder(trade *types.Trade) (*types.Trade, error) {
 				// update the trade object with the market data
 				trade.Price = order.FilledAvgPrice // price per share
 				trade.Quantity = &order.FilledQty  // number of shares
+				// ensure Amount reflects actual fill: price * quantity (decimal math)
+				if trade.Price != nil && trade.Quantity != nil {
+					amt := trade.Price.Mul(*trade.Quantity)
+					trade.Amount = &amt
+				}
 				return trade, nil
 			}
 			if order.Status == "canceled" || order.Status == "rejected" || order.Status == "expired" {

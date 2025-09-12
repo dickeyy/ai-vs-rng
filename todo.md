@@ -4,7 +4,7 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
 
 #### Critical fixes (must address for correct, robust BUY behavior)
 
-- [ ] Ensure filled trade has all canonical fields set post-fill
+- [x] Ensure filled trade has all canonical fields set post-fill
 
   - Files: `services/alpaca.go` (`PlaceOrder`)
   - Issue: In real mode, only `Price` and `Quantity` are set after fill; `Amount` is not recomputed. `agent.updateHoldings` expects all three.

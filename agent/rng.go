@@ -133,7 +133,7 @@ func (a *RNGStrategist) GetCurrentPortfolioValue(ctx context.Context) (decimal.D
 
 // GetStats returns the agent current stats
 func (a *RNGStrategist) GetStats(ctx context.Context) (types.AgentStats, error) {
-	return a.AgentState.Stats, nil // Placeholder
+	return a.AgentState.Stats, nil
 }
 
 // SaveState saves the agent current state to redis
