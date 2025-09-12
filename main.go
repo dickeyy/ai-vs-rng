@@ -41,7 +41,7 @@ func init() {
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	if debug {
+	if debug || devMode {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
@@ -56,25 +56,28 @@ func init() {
 }
 
 func initializeServices() {
+	// pass dev mode to services for simulated execution
+	services.SetDevMode(devMode)
+
 	// init alpaca
 	err := services.InitializeAlpaca()
 	if err != nil {
-		log.Fatal().Msgf("Error initializing Alpaca: %v", err)
+		log.Fatal().Err(err).Msg("Error initializing Alpaca")
 	}
 	log.Info().Msg("Alpaca client initialized")
-	log.Info().Msgf("Using Alpaca account %+v", services.AlpacaAccount.AccountNumber)
+	log.Info().Str("alpaca_account", services.AlpacaAccount.AccountNumber).Msg("Using Alpaca account")
 
 	// init redis
 	err = services.InitializeRedis()
 	if err != nil {
-		log.Fatal().Msgf("Error initializing Redis: %v", err)
+		log.Fatal().Err(err).Msg("Error initializing Redis")
 	}
 	log.Info().Msg("Redis client initialized")
 
 	// init database
 	err = services.InitializeDatabase()
 	if err != nil {
-		log.Fatal().Msgf("Error initializing database: %v", err)
+		log.Fatal().Err(err).Msg("Error initializing database")
 	}
 	log.Info().Msg("Database client initialized")
 }
@@ -83,9 +86,9 @@ func initializeAgents(tradeBroker *broker.Broker) []types.Agent {
 	// parse symbols
 	symbols, err := utils.ParseSymbols()
 	if err != nil {
-		log.Fatal().Msgf("Error parsing symbols: %v", err)
+		log.Fatal().Err(err).Msg("Error parsing symbols")
 	}
-	log.Info().Msgf("Parsed %d symbols", len(symbols))
+	log.Info().Int("symbols_count", len(symbols)).Msg("Parsed symbols")
 
 	rngAgent := agent.NewRNGAgent("RNG_Agent", symbols)
 	rngAgent.SetBroker(tradeBroker)

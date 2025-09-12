@@ -3,8 +3,6 @@ package broker
 import (
 	"container/list"
 	"sync"
-
-	"github.com/dickeyy/cis-320/types"
 )
 
 // TradeQueue is a thread-safe queue for trades.
@@ -20,16 +18,16 @@ func NewTradeQueue() *TradeQueue {
 	}
 }
 
-// Enqueue adds a trade to the back of the queue.
-func (q *TradeQueue) Enqueue(trade *types.Trade) {
+// Enqueue adds a work item to the back of the queue.
+func (q *TradeQueue) Enqueue(item *workItem) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.queue.PushBack(trade)
+	q.queue.PushBack(item)
 }
 
-// Dequeue removes and returns a trade from the front of the queue.
+// Dequeue removes and returns a work item from the front of the queue.
 // It returns nil if the queue is empty.
-func (q *TradeQueue) Dequeue() *types.Trade {
+func (q *TradeQueue) Dequeue() *workItem {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.queue.Len() == 0 {
@@ -37,7 +35,7 @@ func (q *TradeQueue) Dequeue() *types.Trade {
 	}
 	e := q.queue.Front()
 	q.queue.Remove(e)
-	return e.Value.(*types.Trade)
+	return e.Value.(*workItem)
 }
 
 // IsEmpty returns true if the queue is empty, false otherwise.

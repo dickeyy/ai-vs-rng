@@ -14,12 +14,12 @@ func StartAgents(agents []types.Agent) {
 	for _, a := range agents {
 		agent := a // create a new variable for the goroutine
 		go func() {
-			log.Info().Msgf("Starting agent: %s", agent.GetName())
+			log.Info().Str("agent", agent.GetName()).Msg("Starting agent")
 			err := agent.Run(context.Background())
 			if err != nil {
-				log.Err(err).Msgf("Agent %s Run failed", agent.GetName())
+				log.Err(err).Str("agent", agent.GetName()).Msg("Agent run failed")
 			}
-			log.Info().Msgf("Agent %s stopped", agent.GetName())
+			log.Info().Str("agent", agent.GetName()).Msg("Agent stopped")
 		}()
 	}
 

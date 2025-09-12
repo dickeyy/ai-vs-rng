@@ -91,5 +91,5 @@ type Agent interface {
 
 // Broker defines the interface for interacting with the trading broker.
 type Broker interface {
-	SubmitTrade(ctx context.Context, trade *Trade)
+	SubmitTrade(ctx context.Context, trade *Trade, onComplete func(*Trade, error))
 }

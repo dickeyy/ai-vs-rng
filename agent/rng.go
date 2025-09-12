@@ -52,12 +52,12 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 	err := a.LoadState(ctx)
 	if err != nil {
 		if err.Error() == "failed to load agent state: no data found for key RNG_Agent" {
-			log.Info().Msgf("%s: No state found, starting fresh", a.Name)
+			log.Info().Str("agent", a.Name).Msg("No state found, starting fresh")
 		} else {
 			return err
 		}
 	}
-	log.Info().Msgf("%s: Loaded state", a.Name)
+	log.Info().Str("agent", a.Name).Msg("Loaded state")
 
 	// Simulate a ticker within the agent
 	ticker := time.NewTicker(5 * time.Second)
@@ -66,22 +66,33 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ticker.C:
-			log.Info().Msgf("%s: Making a random decision", a.Name)
+			log.Info().Str("agent", a.Name).Msg("Making a random decision")
 			trade := a.makeRandomDecision()
 			if trade != nil {
-				// Submit the trade to the broker
-				a.broker.SubmitTrade(ctx, trade)
-				log.Info().Msgf("%s: Submitted %s order to broker. Order ID: %s", a.Name, trade.Action, trade.OrderID)
-
-				// update and save state
-				a.updateBasicStats(trade)
-				a.updateHoldings(trade)
-				a.SaveState(ctx)
+				// Submit the trade to the broker with a completion callback
+				a.broker.SubmitTrade(ctx, trade, func(processed *types.Trade, err error) {
+					if err != nil {
+						log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.OrderID).Msg("Trade failed or was rejected")
+						return
+					}
+					if processed == nil {
+						log.Error().Str("agent", a.Name).Str("order_id", trade.OrderID).Msg("Broker completed with nil trade")
+						return
+					}
+					// perform state updates only after broker finished processing
+					a.AgentState.Mu.Lock()
+					defer a.AgentState.Mu.Unlock()
+					a.updateBasicStats(processed)
+					a.updateHoldings(processed)
+					_ = a.SaveState(ctx)
+					log.Info().Str("agent", a.Name).Str("order_id", processed.OrderID).Msg("State updated and saved for processed trade")
+				})
+				log.Info().Str("agent", a.Name).Str("action", trade.Action).Str("order_id", trade.OrderID).Msg("Submitted order to broker")
 			} else {
-				log.Info().Msgf("%s: No trade made.", a.Name)
+				log.Info().Str("agent", a.Name).Msg("No trade made")
 			}
 		case <-ctx.Done():
-			log.Info().Msgf("%s: Shutting down RNG Agent.", a.Name)
+			log.Info().Str("agent", a.Name).Msg("Shutting down RNG Agent")
 			return nil
 		}
 	}
@@ -92,7 +103,7 @@ func (a *RNGStrategist) Stop(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to save agent state: %w", err)
 	}
-	log.Info().Msgf("%s: Saved state on stop", a.Name)
+	log.Info().Str("agent", a.Name).Msg("Saved state on stop")
 	return nil
 }
 
@@ -127,7 +138,7 @@ func (a *RNGStrategist) GetStats(ctx context.Context) (types.AgentStats, error) 
 
 // SaveState saves the agent current state to redis
 func (a *RNGStrategist) SaveState(ctx context.Context) error {
-	log.Debug().Msgf("%s: Saving state for agent %s", a.Name, a.Name)
+	log.Debug().Str("agent", a.Name).Msg("Saving state")
 	err := services.SaveAgentState(ctx, a.Name, &a.AgentState)
 	if err != nil {
 		return fmt.Errorf("failed to save agent state: %w", err)
@@ -137,7 +148,7 @@ func (a *RNGStrategist) SaveState(ctx context.Context) error {
 
 // LoadState loads the agent last saved state from redis
 func (a *RNGStrategist) LoadState(ctx context.Context) error {
-	log.Debug().Msgf("%s: Loading state for agent %s", a.Name, a.Name)
+	log.Debug().Str("agent", a.Name).Msg("Loading state")
 	err := services.LoadAgentState(ctx, a.Name, &a.AgentState)
 	if err != nil {
 		return fmt.Errorf("failed to load agent state: %w", err)
@@ -149,7 +160,7 @@ func (a *RNGStrategist) LoadState(ctx context.Context) error {
 func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 	// get a number between 1-100
 	r := utils.RNG(1, 100)
-	log.Debug().Msgf("RNG Agent: Random number generated: %d", r)
+	log.Debug().Str("agent", a.Name).Int("random_value", r).Msg("Random number generated")
 
 	// each option will have a 33% chance
 	// Buy, Sell, or Hold
@@ -160,7 +171,7 @@ func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 		// based on the agents capital, choose a random value < current capital
 		currBalance, _ := a.AgentState.Stats.CurrentBalance.Float64()
 		spend := math.Floor(utils.RandomFloat(0, currBalance)*100+0.5) / 100
-		log.Debug().Msgf("%s: Buying $%.2f of %s", a.Name, spend, symbol)
+		log.Debug().Str("agent", a.Name).Str("symbol", symbol).Float64("amount", spend).Msg("Buying")
 
 		// make the base trade object, this will be updated later with real market data by the broker
 		var tradeAmount = decimal.NewFromFloat(spend)
@@ -174,7 +185,7 @@ func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 		}
 	} else if r <= 66 {
 		// Sell
-		log.Debug().Msgf("Selling")
+		log.Debug().Str("agent", a.Name).Msg("Selling")
 	} else {
 		// Hold
 		return nil
@@ -184,15 +195,21 @@ func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 }
 
 func (a *RNGStrategist) updateBasicStats(trade *types.Trade) {
-	if trade.Action == "BUY" {
-		a.AgentState.Stats.CurrentBalance = a.AgentState.Stats.CurrentBalance.Sub(*trade.Amount)
-	} else {
-		a.AgentState.Stats.CurrentBalance = a.AgentState.Stats.CurrentBalance.Add(*trade.Amount)
+	if trade.Amount != nil {
+		if trade.Action == "BUY" {
+			a.AgentState.Stats.CurrentBalance = a.AgentState.Stats.CurrentBalance.Sub(*trade.Amount)
+		} else {
+			a.AgentState.Stats.CurrentBalance = a.AgentState.Stats.CurrentBalance.Add(*trade.Amount)
+		}
 	}
 	a.AgentState.Stats.TotalTrades++
 }
 
 func (a *RNGStrategist) updateHoldings(trade *types.Trade) {
+	if trade.Quantity == nil || trade.Price == nil || trade.Amount == nil {
+		// nothing to do without complete execution details
+		return
+	}
 	if len(a.AgentState.Holdings) == 0 {
 		a.AgentState.Holdings = append(a.AgentState.Holdings, types.Position{
 			Symbol:      trade.Symbol,
@@ -201,8 +218,8 @@ func (a *RNGStrategist) updateHoldings(trade *types.Trade) {
 			MarketValue: *trade.Amount,
 		})
 	} else {
-		for _, holding := range a.AgentState.Holdings {
-			println(holding.Symbol, trade.Symbol)
+		for i := range a.AgentState.Holdings {
+			holding := &a.AgentState.Holdings[i]
 			if holding.Symbol == trade.Symbol {
 				if trade.Action == "BUY" {
 					holding.Quantity = holding.Quantity.Add(*trade.Quantity)
@@ -213,7 +230,15 @@ func (a *RNGStrategist) updateHoldings(trade *types.Trade) {
 					holding.CPS = *trade.Price // trade.Price should be the current price per share (prov. by alpaca)
 					holding.MarketValue = holding.CPS.Mul(holding.Quantity)
 				}
+				return
 			}
 		}
+		// if we didn't find an existing holding for the symbol, add new
+		a.AgentState.Holdings = append(a.AgentState.Holdings, types.Position{
+			Symbol:      trade.Symbol,
+			Quantity:    *trade.Quantity,
+			CPS:         *trade.Price,
+			MarketValue: *trade.Amount,
+		})
 	}
 }
