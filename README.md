@@ -25,6 +25,8 @@ This project explores the efficacy of various trading strategies in a simulated 
 
 ## Deliverables
 
+_tbd_
+
 ## Installation
 
 1. Prerequisites
@@ -41,58 +43,60 @@ cd cis-320
 
 3. Create an `.env.local` in the project root for secrets
 
-The program loads `./.env.local` on startup and will exit if it is missing. For Docker Compose, only the Alpaca values are required here (DB/Redis are injected by Compose). For a local run without Compose, include DB and Redis as well.
+The program loads `./.env.local` on startup and will exit if it is missing.
+
+- For production (everything in Docker): include only Alpaca values (DB/Redis are injected by Compose).
+- For development (Docker infra + local app): include DB and Redis too so `go run` can connect to the dev containers on localhost.
 
 ```bash
-# Required for both Docker and local runs
+# Required for production runs (in Docker) and optional for dev
 ALPACA_KEY=your_key
 ALPACA_SECRET=your_secret
 # Optional: defaults to paper trading
 ALPACA_API=https://paper-api.alpaca.markets
 
-# Only needed when running locally without docker-compose
+# Only needed when running the app locally (dev)
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/cis320?sslmode=disable
 REDIS_URL=redis://localhost:6379/0
 ```
 
 ## Usage
 
-### Run with Docker Compose (recommended)
+### Development workflow (Docker infra + local app)
 
-1. Start all services (app, Redis, Postgres):
-
-```bash
-docker compose up --build
-```
-
-2. Pass flags dynamically when needed (no defaults baked in):
+1. Start only Redis and Postgres using the dev compose file:
 
 ```bash
-docker compose run --rm app --debug --dev
+docker compose -f docker-compose.dev.yml up -d
 ```
 
-Notes:
-
-- The Compose file mounts `.env.local` into the container so the program can load secrets.
-- Postgres and Redis are provisioned automatically; migrations and `pgcrypto` are applied on first startup.
-
-### Run locally (without Docker)
-
-1. Ensure Postgres and Redis are running and that `DATABASE_URL` and `REDIS_URL` are set in `.env.local` as shown above (or exported in your shell).
-
-2. Build and run:
+2. Run the app locally with flags as needed (Alpaca creds not required in `--dev`):
 
 ```bash
 go run . --debug --dev
-# or
-go build -o cis-320 . && ./cis-320
 ```
 
-3. Optionally, use Docker for infra only and run the app locally:
+3. Stop the dev infrastructure when done:
 
 ```bash
-docker compose up -d postgres redis
-go run . --debug --dev
+docker compose -f docker-compose.dev.yml down
+```
+
+### Production workflow (everything in Docker)
+
+1. Ensure `.env.local` contains your Alpaca credentials.
+
+2. Build and start the full stack (app + Redis + Postgres):
+
+```bash
+docker compose up --build -d
+```
+
+3. View logs and stop:
+
+```bash
+docker compose logs -f app
+docker compose down
 ```
 
 Available agents:

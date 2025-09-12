@@ -1,0 +1,39 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: cis-320-redis-dev
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data-dev:/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cis-320-postgres-dev
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=cis320
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data-dev:/var/lib/postgresql/data
+      - ./sql/init-pgcrypto.sql:/docker-entrypoint-initdb.d/000-init-pgcrypto.sql:ro
+      - ./sql/trades.sql:/docker-entrypoint-initdb.d/010-trades.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cis320"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  redis-data-dev: {}
+  pg-data-dev: {}
