@@ -25,7 +25,6 @@ services:
       - "5432:5432"
     volumes:
       - pg-data-dev:/var/lib/postgresql/data
-      - ./sql/init-pgcrypto.sql:/docker-entrypoint-initdb.d/000-init-pgcrypto.sql:ro
       - ./sql/trades.sql:/docker-entrypoint-initdb.d/010-trades.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cis320"]

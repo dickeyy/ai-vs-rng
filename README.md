@@ -1,5 +1,7 @@
 # CIS 320 Project
 
+<img src="https://waka.kyle.so/api/badge/kyle/interval:any/project:cis-320" alt="WakaTime">
+
 _Project name TBD_
 
 ## Project Description

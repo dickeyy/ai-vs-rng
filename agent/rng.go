@@ -72,11 +72,11 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 				// Submit the trade to the broker with a completion callback
 				a.broker.SubmitTrade(ctx, trade, func(processed *types.Trade, err error) {
 					if err != nil {
-						log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.OrderID).Msg("Trade failed or was rejected")
+						log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
 						return
 					}
 					if processed == nil {
-						log.Error().Str("agent", a.Name).Str("order_id", trade.OrderID).Msg("Broker completed with nil trade")
+						log.Error().Str("agent", a.Name).Str("order_id", trade.ID).Msg("Broker completed with nil trade")
 						return
 					}
 					// perform state updates only after broker finished processing
@@ -85,9 +85,9 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 					a.updateBasicStats(processed)
 					a.updateHoldings(processed)
 					_ = a.SaveState(ctx)
-					log.Info().Str("agent", a.Name).Str("order_id", processed.OrderID).Msg("State updated and saved for processed trade")
+					log.Info().Str("agent", a.Name).Str("order_id", processed.ID).Msg("State updated and saved for processed trade")
 				})
-				log.Info().Str("agent", a.Name).Str("action", trade.Action).Str("order_id", trade.OrderID).Msg("Submitted order to broker")
+				log.Info().Str("agent", a.Name).Str("action", trade.Action).Str("order_id", trade.ID).Msg("Submitted order to broker")
 			} else {
 				log.Info().Str("agent", a.Name).Msg("No trade made")
 			}
@@ -176,7 +176,8 @@ func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 		// make the base trade object, this will be updated later with real market data by the broker
 		var tradeAmount = decimal.NewFromFloat(spend)
 		return &types.Trade{
-			OrderID:   utils.GenerateOrderID(),
+			ID:        utils.GenerateOrderID(),
+			AlpacaID:  "", // to be set by the Alpaca service after placement
 			Symbol:    symbol,
 			Amount:    &tradeAmount,
 			Action:    "BUY",

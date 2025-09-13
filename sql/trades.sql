@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS trades (
     -- Primary Key: Unique identifier for each trade record
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
 
     -- Agent who executed the trade
     agent_name VARCHAR(255) NOT NULL, -- Name of the agent (e.g., "RNG_Strategist_1")
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS trades (
 
     -- Metadata
     timestamp TIMESTAMPTZ NOT NULL, -- The time of the trade as recorded by the API/simulation
-    order_id VARCHAR(255) UNIQUE NOT NULL, -- Unique identifier for the order from the trading API (e.g., Alpaca's order ID). This should be unique across all trades to prevent duplicates.
+    alpaca_id VARCHAR(255) UNIQUE NOT NULL, -- Alpaca's order ID for this trade. Unique across all trades.
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW() -- When this record was inserted into our database
 );
 

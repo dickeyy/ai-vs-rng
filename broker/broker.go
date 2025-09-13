@@ -8,6 +8,7 @@ import (
 	"github.com/dickeyy/cis-320/services"
 	"github.com/dickeyy/cis-320/storage"
 	"github.com/dickeyy/cis-320/types"
+	"github.com/dickeyy/cis-320/utils"
 	"github.com/rs/zerolog/log"
 )
 
@@ -48,28 +49,31 @@ func (b *Broker) ProcessTrades(ctx context.Context) {
 					wi := b.tradeQueue.Dequeue()
 					if wi != nil {
 						trade := wi.trade
-						log.Info().Str("order_id", trade.OrderID).Msg("Broker processing trade")
+						if trade.ID == "" {
+							trade.ID = utils.GenerateOrderID()
+						}
+						log.Info().Str("order_id", trade.ID).Msg("Broker processing trade")
 						// submit the trade to the alpaca api
 						updatedTrade, err := services.PlaceOrder(trade)
 						if err != nil {
-							log.Error().Err(err).Str("order_id", trade.OrderID).Msg("Error placing order")
+							log.Error().Err(err).Str("order_id", trade.ID).Msg("Error placing order")
 							if wi.onComplete != nil {
 								wi.onComplete(nil, err)
 							}
 						} else {
 							trade = updatedTrade
-							log.Info().Str("order_id", trade.OrderID).Msg("Order placed successfully")
+							log.Info().Str("order_id", trade.ID).Msg("Order placed successfully")
 
 							// save the trade to the database (works with both successful and failed orders)
 							err = storage.SaveTrade(ctx, trade.AgentName, trade)
 							if err != nil {
-								log.Error().Err(err).Str("order_id", trade.OrderID).Msg("Error saving trade to DB")
+								log.Error().Err(err).Str("order_id", trade.ID).Msg("Error saving trade to DB")
 							}
 							if wi.onComplete != nil {
 								wi.onComplete(trade, nil)
 							}
 						}
-						log.Info().Str("order_id", trade.OrderID).Msg("Trade processed")
+						log.Info().Str("order_id", trade.ID).Msg("Trade processed")
 					} else {
 						log.Debug().Msg("Trade queue was empty after check, but Dequeue returned nil.")
 					}

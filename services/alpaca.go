@@ -7,6 +7,7 @@ import (
 
 	a "github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/dickeyy/cis-320/types"
+	"github.com/dickeyy/cis-320/utils"
 	"github.com/shopspring/decimal"
 )
 
@@ -66,22 +67,28 @@ func PlaceOrder(trade *types.Trade) (*types.Trade, error) {
 		}
 		trade.Price = &price
 		trade.Quantity = &qty
+		// Ensure AlpacaID is unique in dev mode for DB uniqueness
+		if trade.AlpacaID == "" {
+			trade.AlpacaID = "DEV-" + utils.GenerateOrderID()
+		}
 		return trade, nil
 	}
 
 	switch trade.Action {
 	case "BUY":
 		order, err := Alpaca.PlaceOrder(a.PlaceOrderRequest{
-			Side:          a.Side("buy"),
-			Type:          a.OrderType("market"),
-			Notional:      trade.Amount,
-			Symbol:        trade.Symbol,
-			ClientOrderID: trade.OrderID,
-			TimeInForce:   a.TimeInForce("day"),
+			Side:        a.Side("buy"),
+			Type:        a.OrderType("market"),
+			Notional:    trade.Amount,
+			Symbol:      trade.Symbol,
+			TimeInForce: a.TimeInForce("day"),
 		})
 		if err != nil {
 			return nil, err
 		}
+
+		// Persist the Alpaca order id onto the trade for downstream usage
+		trade.AlpacaID = order.ID
 
 		// Poll until the order reaches a terminal state (preferably filled)
 		deadline := time.Now().Add(15 * time.Second)
