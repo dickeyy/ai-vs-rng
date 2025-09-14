@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/dickeyy/cis-320/services"
 	"github.com/dickeyy/cis-320/types"
 	"github.com/dickeyy/cis-320/utils"
@@ -28,13 +29,12 @@ func NewBroker() *Broker {
 type workItem struct {
 	trade      *types.Trade
 	onComplete func(*types.Trade, error)
-	apiKey     string
-	apiSecret  string
+	client     *alpaca.Client
 }
 
 // SubmitTrade adds a trade to the broker's queue for processing.
-func (b *Broker) SubmitTrade(ctx context.Context, trade *types.Trade, onComplete func(*types.Trade, error), apiKey, apiSecret string) {
-	b.tradeQueue.Enqueue(&workItem{trade: trade, onComplete: onComplete, apiKey: apiKey, apiSecret: apiSecret})
+func (b *Broker) SubmitTrade(ctx context.Context, trade *types.Trade, onComplete func(*types.Trade, error), client *alpaca.Client) {
+	b.tradeQueue.Enqueue(&workItem{trade: trade, onComplete: onComplete, client: client})
 }
 
 // ProcessTrades starts a goroutine to continuously process trades from the queue.
@@ -55,7 +55,7 @@ func (b *Broker) ProcessTrades(ctx context.Context) {
 						}
 						log.Info().Str("order_id", trade.ID).Msg("Broker processing trade")
 
-						processedTrade, err := services.PlaceOrder(trade, wi.apiKey, wi.apiSecret)
+						processedTrade, err := services.PlaceOrder(trade, wi.client)
 						if err != nil {
 							log.Error().Err(err).Str("order_id", trade.ID).Msg("Error placing order")
 							if wi.onComplete != nil {

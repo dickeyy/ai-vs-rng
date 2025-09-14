@@ -20,31 +20,18 @@ type RNGStrategist struct {
 	Symbols []string
 	// Embed AgentState to manage common agent properties
 	types.AgentState
-	broker types.Broker
+	broker       types.Broker
+	AlpacaClient *alpaca.Client
 }
 
 var (
-	apiKey          = ""
-	apiSecret       = ""
 	lastTradeSymbol = ""
 )
 
 func NewRNGAgent(name string, symbols []string) *RNGStrategist {
-	apiKey = os.Getenv("ALPACA_KEY")
-	apiSecret = os.Getenv("ALPACA_SECRET")
-
-	if apiKey == "" || apiSecret == "" {
-		log.Fatal().Msg("ALPACA_KEY/ALPACA_SECRET not set")
-	}
-	log.Info().Msg("Alpaca credentials loaded from environment")
-
-	account, err := services.GetAccount(apiKey, apiSecret)
+	alpacaClient, account, holdings, err := services.InitializeAlpaca(os.Getenv("ALPACA_KEY"), os.Getenv("ALPACA_SECRET"))
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error getting account")
-	}
-	holdings, err := services.GetHoldings(apiKey, apiSecret)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Error getting holdings")
+		log.Fatal().Err(err).Msg("Error initializing Alpaca")
 	}
 
 	return &RNGStrategist{
@@ -54,6 +41,7 @@ func NewRNGAgent(name string, symbols []string) *RNGStrategist {
 			Account:  *account,
 			Holdings: holdings,
 		},
+		AlpacaClient: alpacaClient,
 	}
 }
 
@@ -107,7 +95,7 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 					a.updateAgentState()
 
 					log.Info().Str("agent", a.Name).Str("order_id", processed.ID).Msg("State updated and saved for processed trade")
-				}, apiKey, apiSecret)
+				}, a.AlpacaClient)
 
 				log.Info().Str("agent", a.Name).Str("action", trade.Action).Str("order_id", trade.ID).Msg("Submitted order to broker")
 			} else {
@@ -198,11 +186,11 @@ func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 
 func (a *RNGStrategist) updateAgentState() {
 	// fetch the latest account and holdings from alpaca
-	account, err := services.GetAccount(apiKey, apiSecret)
+	account, err := services.GetAccount(a.AlpacaClient)
 	if err != nil {
 		log.Error().Err(err).Msg("Error getting account")
 	}
-	holdings, err := services.GetHoldings(apiKey, apiSecret)
+	holdings, err := services.GetHoldings(a.AlpacaClient)
 	if err != nil {
 		log.Error().Err(err).Msg("Error getting holdings")
 	}

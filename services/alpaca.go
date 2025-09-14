@@ -5,55 +5,42 @@ import (
 	"os"
 
 	a "github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
-	md "github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 	"github.com/dickeyy/cis-320/types"
 )
 
-var (
-	Alpaca        *a.Client  = nil
-	AlpacaAccount *a.Account = nil
-	DataAPI       *md.Client = nil
-)
-
-func InitializeAlpaca(apiKey, apiSecret string) error {
+func InitializeAlpaca(apiKey, apiSecret string) (*a.Client, *a.Account, []a.Position, error) {
 	baseURL := os.Getenv("ALPACA_API")
 
 	if baseURL == "" {
 		baseURL = "https://paper-api.alpaca.markets"
 	}
 	if apiKey == "" || apiSecret == "" {
-		return fmt.Errorf("ALPACA_KEY and ALPACA_SECRET must be set for live mode")
+		return nil, nil, nil, fmt.Errorf("ALPACA_KEY and ALPACA_SECRET must be set for live mode")
 	}
 
-	Alpaca = a.NewClient(a.ClientOpts{
+	client := a.NewClient(a.ClientOpts{
 		APIKey:    apiKey,
 		APISecret: apiSecret,
 		BaseURL:   baseURL,
 	})
-	acct, err := Alpaca.GetAccount()
+
+	account, err := GetAccount(client)
 	if err != nil {
-		return err
-	}
-	AlpacaAccount = acct
-
-	return nil
-}
-
-func ShutdownAlpaca() {
-	Alpaca = nil
-	AlpacaAccount = nil
-}
-
-func PlaceOrder(trade *types.Trade, apiKey, apiSecret string) (*types.Trade, error) {
-	// initalize alpaca
-	err := InitializeAlpaca(apiKey, apiSecret)
-	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
+	holdings, err := GetHoldings(client)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return client, account, holdings, nil
+}
+
+func PlaceOrder(trade *types.Trade, client *a.Client) (*types.Trade, error) {
 	switch trade.Action {
 	case "BUY":
-		order, err := Alpaca.PlaceOrder(a.PlaceOrderRequest{
+		order, err := client.PlaceOrder(a.PlaceOrderRequest{
 			Side:        a.Side("buy"),
 			Type:        a.OrderType("market"),
 			Notional:    trade.Amount,
@@ -66,10 +53,8 @@ func PlaceOrder(trade *types.Trade, apiKey, apiSecret string) (*types.Trade, err
 
 		// Persist the Alpaca order id onto the trade for downstream usage
 		trade.AlpacaID = order.ID
-
-		ShutdownAlpaca()
 	case "SELL":
-		order, err := Alpaca.PlaceOrder(a.PlaceOrderRequest{
+		order, err := client.PlaceOrder(a.PlaceOrderRequest{
 			Side:        a.Side("sell"),
 			Type:        a.OrderType("market"),
 			Qty:         trade.Quantity,
@@ -82,40 +67,24 @@ func PlaceOrder(trade *types.Trade, apiKey, apiSecret string) (*types.Trade, err
 
 		// Persist the Alpaca order id onto the trade for downstream usage
 		trade.AlpacaID = order.ID
-
-		ShutdownAlpaca()
 	}
 	return trade, nil
 }
 
-func GetHoldings(apiKey, apiSecret string) ([]a.Position, error) {
-	err := InitializeAlpaca(apiKey, apiSecret)
+func GetHoldings(client *a.Client) ([]a.Position, error) {
+	holdings, err := client.GetPositions()
 	if err != nil {
 		return nil, err
 	}
-
-	holdings, err := Alpaca.GetPositions()
-	if err != nil {
-		return nil, err
-	}
-
-	ShutdownAlpaca()
 
 	return holdings, nil
 }
 
-func GetAccount(apiKey, apiSecret string) (*a.Account, error) {
-	err := InitializeAlpaca(apiKey, apiSecret)
+func GetAccount(client *a.Client) (*a.Account, error) {
+	account, err := client.GetAccount()
 	if err != nil {
 		return nil, err
 	}
-
-	account, err := Alpaca.GetAccount()
-	if err != nil {
-		return nil, err
-	}
-
-	ShutdownAlpaca()
 
 	return account, nil
 }
