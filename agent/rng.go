@@ -2,10 +2,11 @@ package agent
 
 import (
 	"context"
-	"fmt"
 	"math"
+	"os"
 	"time"
 
+	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/dickeyy/cis-320/services"
 	"github.com/dickeyy/cis-320/types"
 	"github.com/dickeyy/cis-320/utils"
@@ -22,20 +23,36 @@ type RNGStrategist struct {
 	broker types.Broker
 }
 
+var (
+	apiKey          = ""
+	apiSecret       = ""
+	lastTradeSymbol = ""
+)
+
 func NewRNGAgent(name string, symbols []string) *RNGStrategist {
+	apiKey = os.Getenv("ALPACA_KEY")
+	apiSecret = os.Getenv("ALPACA_SECRET")
+
+	if apiKey == "" || apiSecret == "" {
+		log.Fatal().Msg("ALPACA_KEY/ALPACA_SECRET not set")
+	}
+	log.Info().Msg("Alpaca credentials loaded from environment")
+
+	account, err := services.GetAccount(apiKey, apiSecret)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Error getting account")
+	}
+	holdings, err := services.GetHoldings(apiKey, apiSecret)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Error getting holdings")
+	}
+
 	return &RNGStrategist{
 		Name:    name,
 		Symbols: symbols,
 		AgentState: types.AgentState{
-			Name:     name,
-			Holdings: []types.Position{},
-			Stats: types.AgentStats{
-				InitialBalance: decimal.NewFromFloat(10000), // Starting capital
-				CurrentBalance: decimal.NewFromFloat(10000),
-				TotalTrades:    0,
-				WinningTrades:  0,
-				LosingTrades:   0,
-			},
+			Account:  *account,
+			Holdings: holdings,
 		},
 	}
 }
@@ -48,17 +65,6 @@ func (a *RNGStrategist) SetBroker(broker types.Broker) {
 }
 
 func (a *RNGStrategist) Run(ctx context.Context) error {
-	// attempt to load state
-	err := a.LoadState(ctx)
-	if err != nil {
-		if err.Error() == "failed to load agent state: no data found for key RNG_Agent" {
-			log.Info().Str("agent", a.Name).Msg("No state found, starting fresh")
-		} else {
-			return err
-		}
-	}
-	log.Info().Str("agent", a.Name).Msg("Loaded state")
-
 	// Simulate a ticker within the agent
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -66,27 +72,43 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ticker.C:
+			// make sure the market is open (only applies to non-dev mode)
+			if !utils.IsTradingHours() {
+				log.Debug().Str("agent", a.Name).Msg("Not trading hours, skipping")
+				continue
+			}
+
+			// process trade
 			log.Info().Str("agent", a.Name).Msg("Making a random decision")
 			trade := a.makeRandomDecision()
 			if trade != nil {
+				// check last trade symbolt to avoid wash trading
+				if trade.Symbol == lastTradeSymbol {
+					log.Info().Str("agent", a.Name).Str("symbol", trade.Symbol).Msg("Skipping trade, last trade was the same symbol")
+					continue
+				}
+				lastTradeSymbol = trade.Symbol
+
 				// Submit the trade to the broker with a completion callback
 				a.broker.SubmitTrade(ctx, trade, func(processed *types.Trade, err error) {
 					if err != nil {
 						log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
 						return
 					}
+
 					if processed == nil {
 						log.Error().Str("agent", a.Name).Str("order_id", trade.ID).Msg("Broker completed with nil trade")
 						return
 					}
+
 					// perform state updates only after broker finished processing
 					a.AgentState.Mu.Lock()
 					defer a.AgentState.Mu.Unlock()
-					a.updateBasicStats(processed)
-					a.updateHoldings(processed)
-					_ = a.SaveState(ctx)
+					a.updateAgentState()
+
 					log.Info().Str("agent", a.Name).Str("order_id", processed.ID).Msg("State updated and saved for processed trade")
-				})
+				}, apiKey, apiSecret)
+
 				log.Info().Str("agent", a.Name).Str("action", trade.Action).Str("order_id", trade.ID).Msg("Submitted order to broker")
 			} else {
 				log.Info().Str("agent", a.Name).Msg("No trade made")
@@ -99,61 +121,22 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 }
 
 func (a *RNGStrategist) Stop(ctx context.Context) error {
-	err := a.SaveState(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to save agent state: %w", err)
-	}
-	log.Info().Str("agent", a.Name).Msg("Saved state on stop")
 	return nil
 }
 
 // GetName returns the name of the RNG Strategist.
 func (a *RNGStrategist) GetName() string {
-	return a.AgentState.Name
+	return a.Name
 }
 
 // GetHoldings returns the agent current holdings
-func (a *RNGStrategist) GetHoldings(ctx context.Context) ([]types.Position, error) {
+func (a *RNGStrategist) GetHoldings(ctx context.Context) ([]alpaca.Position, error) {
 	return a.AgentState.Holdings, nil
 }
 
-// GetCashBalance returns the agent current cash balance
-func (a *RNGStrategist) GetCashBalance(ctx context.Context) (decimal.Decimal, error) {
-	return a.AgentState.Stats.CurrentBalance, nil
-}
-
-// GetCurrentPortfolioValue returns the agent current portfolio value (cash + holdings value)
-func (a *RNGStrategist) GetCurrentPortfolioValue(ctx context.Context) (decimal.Decimal, error) {
-	holdingsValue := decimal.NewFromFloat(0)
-	for _, holding := range a.AgentState.Holdings {
-		holdingsValue = holdingsValue.Add(holding.MarketValue)
-	}
-	return a.AgentState.Stats.CurrentBalance.Add(holdingsValue), nil
-}
-
-// GetStats returns the agent current stats
-func (a *RNGStrategist) GetStats(ctx context.Context) (types.AgentStats, error) {
-	return a.AgentState.Stats, nil
-}
-
-// SaveState saves the agent current state to redis
-func (a *RNGStrategist) SaveState(ctx context.Context) error {
-	log.Debug().Str("agent", a.Name).Msg("Saving state")
-	err := services.SaveAgentState(ctx, a.Name, &a.AgentState)
-	if err != nil {
-		return fmt.Errorf("failed to save agent state: %w", err)
-	}
-	return nil
-}
-
-// LoadState loads the agent last saved state from redis
-func (a *RNGStrategist) LoadState(ctx context.Context) error {
-	log.Debug().Str("agent", a.Name).Msg("Loading state")
-	err := services.LoadAgentState(ctx, a.Name, &a.AgentState)
-	if err != nil {
-		return fmt.Errorf("failed to load agent state: %w", err)
-	}
-	return nil
+// GetBuyingPower returns the agent current buying power
+func (a *RNGStrategist) GetBuyingPower(ctx context.Context) (decimal.Decimal, error) {
+	return a.AgentState.Account.BuyingPower, nil
 }
 
 // makeRandomDecision handles the agent's core algorithm
@@ -168,9 +151,11 @@ func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 		// Buy
 		// choose a random symbol
 		symbol := utils.RandomString(a.Symbols)
-		// based on the agents capital, choose a random value < current capital
-		currBalance, _ := a.AgentState.Stats.CurrentBalance.Float64()
+		// based on the agents capital, choose a random value <= current capital
+		currBalance, _ := a.AgentState.Account.BuyingPower.Float64()
 		spend := math.Floor(utils.RandomFloat(0, currBalance)*100+0.5) / 100
+		// clamp the spend to the current balance
+		spend = math.Min(spend, currBalance)
 		log.Debug().Str("agent", a.Name).Str("symbol", symbol).Float64("amount", spend).Msg("Buying")
 
 		// make the base trade object, this will be updated later with real market data by the broker
@@ -186,60 +171,43 @@ func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 		}
 	} else if r <= 66 {
 		// Sell
-		log.Debug().Str("agent", a.Name).Msg("Selling")
+		// choose a random holding
+		holding := utils.RandomItem(a.AgentState.Holdings)
+		// based on the holding's quantity, choose a random value <= quantity
+		qty, _ := holding.QtyAvailable.Float64()
+		sell := math.Floor(utils.RandomFloat(0, qty)*100+0.5) / 100
+		sell = math.Min(sell, qty)
+		log.Debug().Str("agent", a.Name).Str("holding", holding.Symbol).Float64("amount", sell).Msg("Selling")
+
+		// make the base trade object, this will be updated later with real market data by the broker
+		var tradeQuantity = decimal.NewFromFloat(sell)
+		return &types.Trade{
+			ID:        utils.GenerateOrderID(),
+			AlpacaID:  "", // to be set by the Alpaca service after placement
+			Symbol:    holding.Symbol,
+			Quantity:  &tradeQuantity,
+			Action:    "SELL",
+			Timestamp: time.Now(),
+			AgentName: a.Name,
+		}
 	} else {
 		// Hold
 		return nil
 	}
-
-	return nil
 }
 
-func (a *RNGStrategist) updateBasicStats(trade *types.Trade) {
-	if trade.Amount != nil {
-		if trade.Action == "BUY" {
-			a.AgentState.Stats.CurrentBalance = a.AgentState.Stats.CurrentBalance.Sub(*trade.Amount)
-		} else {
-			a.AgentState.Stats.CurrentBalance = a.AgentState.Stats.CurrentBalance.Add(*trade.Amount)
-		}
+func (a *RNGStrategist) updateAgentState() {
+	// fetch the latest account and holdings from alpaca
+	account, err := services.GetAccount(apiKey, apiSecret)
+	if err != nil {
+		log.Error().Err(err).Msg("Error getting account")
 	}
-	a.AgentState.Stats.TotalTrades++
-}
+	holdings, err := services.GetHoldings(apiKey, apiSecret)
+	if err != nil {
+		log.Error().Err(err).Msg("Error getting holdings")
+	}
 
-func (a *RNGStrategist) updateHoldings(trade *types.Trade) {
-	if trade.Quantity == nil || trade.Price == nil || trade.Amount == nil {
-		// nothing to do without complete execution details
-		return
-	}
-	if len(a.AgentState.Holdings) == 0 {
-		a.AgentState.Holdings = append(a.AgentState.Holdings, types.Position{
-			Symbol:      trade.Symbol,
-			Quantity:    *trade.Quantity,
-			CPS:         *trade.Price,
-			MarketValue: *trade.Amount,
-		})
-	} else {
-		for i := range a.AgentState.Holdings {
-			holding := &a.AgentState.Holdings[i]
-			if holding.Symbol == trade.Symbol {
-				if trade.Action == "BUY" {
-					holding.Quantity = holding.Quantity.Add(*trade.Quantity)
-					holding.CPS = *trade.Price // trade.Price should be the current price per share (prov. by alpaca)
-					holding.MarketValue = holding.CPS.Mul(holding.Quantity)
-				} else {
-					holding.Quantity = holding.Quantity.Sub(*trade.Quantity)
-					holding.CPS = *trade.Price // trade.Price should be the current price per share (prov. by alpaca)
-					holding.MarketValue = holding.CPS.Mul(holding.Quantity)
-				}
-				return
-			}
-		}
-		// if we didn't find an existing holding for the symbol, add new
-		a.AgentState.Holdings = append(a.AgentState.Holdings, types.Position{
-			Symbol:      trade.Symbol,
-			Quantity:    *trade.Quantity,
-			CPS:         *trade.Price,
-			MarketValue: *trade.Amount,
-		})
-	}
+	// update the agent state
+	a.AgentState.Account = *account
+	a.AgentState.Holdings = holdings
 }

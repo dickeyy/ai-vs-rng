@@ -9,7 +9,6 @@ import (
 
 	"github.com/dickeyy/cis-320/agent"
 	"github.com/dickeyy/cis-320/broker"
-	"github.com/dickeyy/cis-320/services"
 	"github.com/dickeyy/cis-320/types"
 	"github.com/dickeyy/cis-320/utils"
 	"github.com/joho/godotenv"
@@ -57,29 +56,7 @@ func init() {
 
 func initializeServices() {
 	// pass dev mode to services for simulated execution
-	services.SetDevMode(devMode)
-
-	// init alpaca
-	err := services.InitializeAlpaca()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Error initializing Alpaca")
-	}
-	log.Info().Msg("Alpaca client initialized")
-	log.Info().Str("alpaca_account", services.AlpacaAccount.AccountNumber).Msg("Using Alpaca account")
-
-	// init redis
-	err = services.InitializeRedis()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Error initializing Redis")
-	}
-	log.Info().Msg("Redis client initialized")
-
-	// init database
-	err = services.InitializeDatabase()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Error initializing database")
-	}
-	log.Info().Msg("Database client initialized")
+	utils.SetDevMode(devMode)
 }
 
 func initializeAgents(tradeBroker *broker.Broker) []types.Agent {

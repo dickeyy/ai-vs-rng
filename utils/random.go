@@ -14,6 +14,10 @@ func RandomString(strs []string) string {
 	return strs[RNG(0, len(strs)-1)]
 }
 
+func RandomItem[T any](items []T) T {
+	return items[RNG(0, len(items)-1)]
+}
+
 func RandomBool() bool {
 	return rand.Intn(2) == 1
 }

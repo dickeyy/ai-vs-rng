@@ -1,21 +1,30 @@
 package utils
 
 import (
-	"bufio"
 	"os"
+
+	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 )
 
 func ParseSymbols() ([]string, error) {
-	file, err := os.Open("./symbols.txt")
+	d, err := alpaca.NewClient(alpaca.ClientOpts{
+		APIKey:    os.Getenv("ALPACA_KEY"),
+		APISecret: os.Getenv("ALPACA_SECRET"),
+		BaseURL:   "https://paper-api.alpaca.markets",
+	}).GetAssets(alpaca.GetAssetsRequest{
+		Status:     "active",
+		AssetClass: "us_equity",
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	symbols := make([]string, 0)
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		symbols = append(symbols, scanner.Text())
+	symbols := make([]string, 0, len(d))
+	for _, asset := range d {
+		if asset.Fractionable && asset.Tradable && asset.Status == alpaca.AssetActive {
+			symbols = append(symbols, asset.Symbol)
+		}
 	}
+
 	return symbols, nil
 }

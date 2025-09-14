@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/shopspring/decimal"
 )
 
@@ -42,10 +43,10 @@ type AgentStats struct {
 
 // AgentState represents the current state of an agent
 type AgentState struct {
-	Name     string     `json:"name"`
-	Holdings []Position `json:"holdings"`
-	Stats    AgentStats `json:"stats"`
-	Mu       sync.Mutex
+	Name     string            `json:"name"`
+	Account  alpaca.Account    `json:"account"`
+	Holdings []alpaca.Position `json:"holdings"`
+	Mu       sync.Mutex        `json:"-"`
 }
 
 // Agent is the interface that all trading strategists must implement.
@@ -64,33 +65,16 @@ type Agent interface {
 	// This might internally cancel the context passed to Run or use another mechanism.
 	Stop(ctx context.Context) error
 
-	// GetHoldings retrieves the agent's current stock positions.
-	// Returns a slice of Position or an error.
-	GetHoldings(ctx context.Context) ([]Position, error)
+	// GetHoldings retrieves the agent's current stock positions from Alpaca.
+	GetHoldings(ctx context.Context) ([]alpaca.Position, error)
 
-	// GetCashBalance retrieves the agent's current available cash balance.
-	GetCashBalance(ctx context.Context) (decimal.Decimal, error)
-
-	// GetCurrentPortfolioValue calculates the total value of the agent's portfolio
-	// (cash + market value of all holdings).
-	GetCurrentPortfolioValue(ctx context.Context) (decimal.Decimal, error)
-
-	// GetStats returns the current aggregated performance statistics for the agent.
-	GetStats(ctx context.Context) (AgentStats, error)
-
-	// SaveStats persists the current state and performance metrics of the agent.
-	// This is crucial for long-running agents and for providing historical data
-	// to the observability dashboard.
-	SaveState(ctx context.Context) error
-
-	// LoadState loads the previous state of the agent (e.g., from a file or DB).
-	// This is useful if agents need to resume operations or track long-term performance.
-	LoadState(ctx context.Context) error
+	// GetBuyingPower retrieves the agent's current buying power.
+	GetBuyingPower(ctx context.Context) (decimal.Decimal, error)
 
 	SetBroker(broker Broker)
 }
 
 // Broker defines the interface for interacting with the trading broker.
 type Broker interface {
-	SubmitTrade(ctx context.Context, trade *Trade, onComplete func(*Trade, error))
+	SubmitTrade(ctx context.Context, trade *Trade, onComplete func(*Trade, error), apiKey, apiSecret string)
 }

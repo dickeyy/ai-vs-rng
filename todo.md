@@ -1,20 +1,8 @@
-### RNG Agent — BUY flow completion checklist
+### RNG Agent — BUY/SELL flow completion checklist
 
 Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.go`, `storage/trades.go`, `types/*`, and wiring in `main.go`.
 
-#### Critical fixes (must address for correct, robust BUY behavior)
-
-- [x] Ensure filled trade has all canonical fields set post-fill
-
-  - Files: `services/alpaca.go` (`PlaceOrder`)
-  - Issue: In real mode, only `Price` and `Quantity` are set after fill; `Amount` is not recomputed. `agent.updateHoldings` expects all three.
-  - Proposed fix: After an order fills (or partially fills), set `trade.Amount = price * qty` using `decimal` multiplication, not float math.
-
-- [x] Handle partial fills as success (with filled values)
-
-  - Files: `services/alpaca.go` (`PlaceOrder`)
-  - Issue: Polling loop only exits on `status == "filled"`; ignores `partially_filled` terminal-ish case close to timeout.
-  - Proposed fix: Treat `partially_filled` (with non-zero `FilledQty`) as a valid outcome on timeout or after a grace window. Return trade with filled qty/avg price.
+#### Critical fixes (must address for correct, robust BUY/SELL behavior)
 
 - [ ] Avoid pointer aliasing to Alpaca order fields
 
@@ -28,16 +16,36 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Issue: Random spend can be `$0.00`, causing broker/API errors.
   - Proposed fix: Enforce a minimum notional (e.g., `$1.00`) and clamp to available balance; skip trade if balance < minimum.
 
-- [ ] Use filled cost, not requested notional, for cash updates
+- [ ] Persist state and reconcile from Alpaca after each trade
 
-  - Files: `agent/rng.go` (`updateBasicStats`)
-  - Issue: Cash balance is adjusted by requested `Amount` (notional), not actual `price * qty`.
-  - Proposed fix: If `Price` and `Quantity` are present, compute actual fill cost; fall back to notional only if needed.
+  - Files: `agent/rng.go`
+  - Issue: Agent refreshes account/holdings from Alpaca in callback but does not call `SaveState` afterward.
+  - Proposed fix: After `updateAgentState`, call `SaveState` and handle/log errors to persist latest account/holdings.
 
 - [ ] Guard against empty `symbols` set
+
   - Files: `utils/parse-symbols.go`, `main.go`
   - Issue: `utils.RandomString(a.Symbols)` panics if the slice is empty.
   - Proposed fix: Trim and ignore blank lines in parser; fail fast if no symbols; skip buy if `len(symbols) == 0`.
+
+- [ ] SELL: Verify holdings selection and quantity derivation
+
+  - Files: `agent/rng.go`
+  - Issues:
+    - `utils.RandomItem` panics on empty slice; SELL will panic when no holdings.
+    - Uses `holding.QtyAvailable`; verify this field exists and its type on `alpaca.Position`.
+  - Proposed fix: Handle empty holdings by skipping SELL; use correct quantity field and safe decimal conversions.
+
+- [ ] SELL: Validate share quantity and fractional trading
+
+  - Files: `agent/rng.go`, `services/alpaca.go`
+  - Issue: Random fractional share sells may be invalid if fractional trading is not enabled.
+  - Proposed fix: If fractional not enabled, round to whole shares; ensure `Qty > 0` before order.
+
+- [ ] Correlate client and server order ids
+  - Files: `services/alpaca.go`, `broker/broker.go`
+  - Issue: `ClientOrderID` not set on Alpaca requests; tracing is harder.
+  - Proposed fix: Set `ClientOrderID = trade.ID` for both BUY and SELL.
 
 #### Important improvements (correctness/quality)
 
@@ -71,13 +79,25 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Proposed fix: Log on error and consider retry/backoff to honor durability goals.
 
 - [ ] Optional: Record Alpaca server order ID
+
   - Files: `services/alpaca.go` (`PlaceOrder`)
   - Issue: `trade.OrderID` is set to a client-generated UUID, not Alpaca order ID.
   - Proposed fix: Add field or update to store Alpaca `order.ID` for traceability; keep client ID separately if useful.
 
+- [ ] Use a shared Alpaca client per process (performance)
+
+  - Files: `services/alpaca.go`
+  - Issue: Client is initialized and torn down for each call, which is inefficient.
+  - Proposed fix: Initialize once and reuse across requests; ensure thread-safety.
+
+- [ ] `utils.IsTradingHours` repeated client creation
+  - Files: `utils/time.go`
+  - Issue: Creates a new Alpaca client each check.
+  - Proposed fix: Reuse shared client or cache the result briefly.
+
 #### Broker, persistence, and API edge cases
 
-- [ ] Persist failed BUY attempts (optional but recommended for auditability)
+- [ ] Persist failed BUY/SELL attempts (optional but recommended for auditability)
 
   - Files: `broker/broker.go`, `storage/trades.go`, `sql/trades.sql`
   - Issue: On error, trades are not persisted (comment says both successful and failed, but code only saves on success).
@@ -89,8 +109,14 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Proposed fix: Optionally check market open or `TradingBlocked` and skip trade early to reduce noisy errors.
 
 - [ ] Timeout/backoff tuning for order polling
+
   - Files: `services/alpaca.go`
   - Proposed fix: Consider exponential backoff or longer deadline during volatile periods; log last known status on timeout.
+
+- [ ] Align DB schema and code with new `types.Trade`
+  - Files: `sql/trades.sql`, `storage/trades.go`, any persistence usage
+  - Issue: DB schema/code expect fields like `order_id`; current flow uses `ID` and `AlpacaID`, and storage layer is unused.
+  - Proposed fix: Decide whether to persist trades. If yes, update schema and storage to record `ID`, `AlpacaID`, symbol, qty, amount, price, action, timestamp, and status.
 
 #### Validation and guardrails
 
@@ -105,9 +131,15 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Proposed fix: Ensure `spend <= CurrentBalance` after rounding; if rounding pushes over, reduce by a cent.
 
 - [ ] Concurrency safety for balance reads vs. callback updates
+
   - Files: `agent/rng.go`
-  - Issue: `makeRandomDecision` reads balance without lock while callback writes it; could produce inconsistent spends.
-  - Proposed fix: Read balance under the same mutex or cache balance updates atomically before decision.
+  - Issue: `makeRandomDecision` reads state without lock while callback updates it; potential data races.
+  - Proposed fix: Read under mutex or atomically snapshot required fields; avoid holding lock during network calls.
+
+- [ ] Guard SELL against zero/near-zero quantities
+  - Files: `agent/rng.go`
+  - Issue: Randomization may produce `0` shares; Alpaca may reject.
+  - Proposed fix: Enforce minimum of 1 share (or smallest allowed fractional increment) when fractional is disabled.
 
 #### Observability and metrics (nice-to-haves per project goals)
 
@@ -115,6 +147,11 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
 
   - Files: `agent/rng.go`, `broker/broker.go`, `services/alpaca.go`
   - Proposed fix: Log `symbol`, `notional`, `filled_qty`, `filled_avg_price`, `fill_cost`, and post-trade `cash`/`position`.
+
+- [ ] Enrich logs for SELL lifecycle
+
+  - Files: `agent/rng.go`, `broker/broker.go`, `services/alpaca.go`
+  - Proposed fix: Log `symbol`, `requested_qty`, `filled_qty`, `filled_avg_price`, proceeds, and post-trade `cash`/`position`.
 
 - [ ] Expose Prometheus counters/gauges
   - Proposed fix: Add metrics for submitted/filled/failed BUYs, cash balance, and per-symbol positions.
@@ -126,3 +163,6 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
 - [ ] Unit: `updateHoldings` computes weighted average cost correctly
 - [ ] Integration (dev mode): BUY creates filled trade with `Price`, `Quantity`, `Amount`; holdings and cash update; state persisted to Redis and trade saved to DB
 - [ ] Integration (real mode, mocked Alpaca): partial fill handled; `Amount` set; cash/holdings consistent
+
+- [ ] Unit: SELL chooses valid holding and qty > 0; respects fractional setting
+- [ ] Integration: SELL reduces position, updates account cash; state persisted; order ids correlated

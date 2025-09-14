@@ -1,9 +1,13 @@
 Specifications:
-
-- after each trade, the agent will update its basic stats (total trades, cash balance) and save them to redis
-- at market close each night, each agent will calculate its FULL stats and save them to redis
+- all trading is done through alpacas paper trading api, this way we dont need to handle any market data or anything. alpaca will handle
+everything for us and even gives us a nice dashboard to view portfolio and performance
+- each agent has its own api key and secret that way each can use its own alpaca account
+- each agent runs concurrently in its own goroutine while there is a single brokerage process handling the trade queue
+- every part of the system is designed to be modular so we can easily modify individual parts without affecting the whole thing
 
 Order flow:
-Agent Makes Decision → Submits Trade → Broker Processes → 
-Alpaca API → Trade Complete → Callback to Agent → 
-Agent Updates State → State Saved → Ready for Next Decision
+agent makes decision -> submit trade to broker ->
+broker processes trade and submits it to alpaca -> alpaca places trade ->
+if successful, broker calls the callback function -> agent fetches new account and holdings object from alpaca
+
+agents avoid wash trading by checking the last trade symbol and skipping if it is the same symbol

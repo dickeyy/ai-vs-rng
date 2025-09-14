@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/dickeyy/cis-320/services"
-	"github.com/dickeyy/cis-320/storage"
 	"github.com/dickeyy/cis-320/types"
 	"github.com/dickeyy/cis-320/utils"
 	"github.com/rs/zerolog/log"
@@ -29,11 +28,13 @@ func NewBroker() *Broker {
 type workItem struct {
 	trade      *types.Trade
 	onComplete func(*types.Trade, error)
+	apiKey     string
+	apiSecret  string
 }
 
 // SubmitTrade adds a trade to the broker's queue for processing.
-func (b *Broker) SubmitTrade(ctx context.Context, trade *types.Trade, onComplete func(*types.Trade, error)) {
-	b.tradeQueue.Enqueue(&workItem{trade: trade, onComplete: onComplete})
+func (b *Broker) SubmitTrade(ctx context.Context, trade *types.Trade, onComplete func(*types.Trade, error), apiKey, apiSecret string) {
+	b.tradeQueue.Enqueue(&workItem{trade: trade, onComplete: onComplete, apiKey: apiKey, apiSecret: apiSecret})
 }
 
 // ProcessTrades starts a goroutine to continuously process trades from the queue.
@@ -53,27 +54,28 @@ func (b *Broker) ProcessTrades(ctx context.Context) {
 							trade.ID = utils.GenerateOrderID()
 						}
 						log.Info().Str("order_id", trade.ID).Msg("Broker processing trade")
-						// submit the trade to the alpaca api
-						updatedTrade, err := services.PlaceOrder(trade)
+
+						processedTrade, err := services.PlaceOrder(trade, wi.apiKey, wi.apiSecret)
 						if err != nil {
 							log.Error().Err(err).Str("order_id", trade.ID).Msg("Error placing order")
 							if wi.onComplete != nil {
 								wi.onComplete(nil, err)
 							}
 						} else {
-							trade = updatedTrade
-							log.Info().Str("order_id", trade.ID).Msg("Order placed successfully")
-
-							// save the trade to the database (works with both successful and failed orders)
-							err = storage.SaveTrade(ctx, trade.AgentName, trade)
-							if err != nil {
-								log.Error().Err(err).Str("order_id", trade.ID).Msg("Error saving trade to DB")
+							if processedTrade != nil {
+								log.Info().Str("order_id", processedTrade.ID).Str("alpaca_id", processedTrade.AlpacaID).Msg("Order placed successfully")
+							} else {
+								log.Info().Str("order_id", trade.ID).Msg("Order placed successfully")
 							}
 							if wi.onComplete != nil {
-								wi.onComplete(trade, nil)
+								// prefer returning processed trade if available
+								if processedTrade != nil {
+									wi.onComplete(processedTrade, nil)
+								} else {
+									wi.onComplete(trade, nil)
+								}
 							}
 						}
-						log.Info().Str("order_id", trade.ID).Msg("Trade processed")
 					} else {
 						log.Debug().Msg("Trade queue was empty after check, but Dequeue returned nil.")
 					}
