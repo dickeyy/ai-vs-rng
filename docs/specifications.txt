@@ -1,3 +1,9 @@
+General breakdown:
+Each agent has its own alpaca paper trading account. On startup, we query alpaca and get the Account object and the Positions object. 
+Then on the tick, each agent will run its algorithm (however it decides what action to take) then it will submit a trade object to a 
+broker queue, the broker service then processes the trade in the queue and submits it to alpaca the broker then runs a callback function 
+in which the agent re-queries its account and positions and updates its state.
+
 Specifications:
 - all trading is done through alpacas paper trading api, this way we dont need to handle any market data or anything. alpaca will handle
 everything for us and even gives us a nice dashboard to view portfolio and performance
