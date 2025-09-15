@@ -6,6 +6,7 @@ require (
 	github.com/alpacahq/alpaca-trade-api-go/v3 v3.8.1
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/revrost/go-openrouter v0.2.4
 	github.com/rs/zerolog v1.34.0
 	github.com/shopspring/decimal v1.4.0
 )

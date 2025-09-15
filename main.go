@@ -9,6 +9,7 @@ import (
 
 	"github.com/dickeyy/cis-320/agent"
 	"github.com/dickeyy/cis-320/broker"
+	"github.com/dickeyy/cis-320/services"
 	"github.com/dickeyy/cis-320/types"
 	"github.com/dickeyy/cis-320/utils"
 	"github.com/joho/godotenv"
@@ -57,17 +58,18 @@ func init() {
 func initializeServices() {
 	// pass dev mode to services for simulated execution
 	utils.SetDevMode(devMode)
+	services.InitializeAI()
 }
 
 func initializeAgents(tradeBroker *broker.Broker) []types.Agent {
 	// parse symbols
-	symbols, err := utils.ParseSymbols()
+	err := utils.ParseSymbols()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error parsing symbols")
 	}
-	log.Info().Int("symbols_count", len(symbols)).Msg("Parsed symbols")
+	log.Info().Int("symbols_count", len(utils.Symbols)).Msg("Parsed symbols")
 
-	rngAgent := agent.NewRNGAgent("RNG_Agent", symbols)
+	rngAgent := agent.NewRNGAgent("RNG_Agent", utils.Symbols)
 	rngAgent.SetBroker(tradeBroker)
 	agentsToStart := []types.Agent{rngAgent}
 	return agentsToStart

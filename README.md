@@ -22,11 +22,17 @@ This project explores the efficacy of various trading strategies in a simulated 
 - Main language: [Go v1.24.1](https://go.dev/)
 - Stock market API: [Alpaca](https://alpaca.markets/)
   - SDK: [alpaca-trade-api-go](https://github.com/alpacahq/alpaca-trade-api-go/)
-- LLM: [Gemini 2.0 Flash](https://openrouter.ai/google/gemini-2.0-flash-001)\*
-  - Provider: [OpenRouter](https://openrouter.ai/)\*
-  - SDK: [go-openrouter](https://github.com/reVrost/go-openrouter)\*
+- LLM: [Gemini 2.5 Flash](https://openrouter.ai/google/gemini-2.5-flash)\*
+  - Provider: [OpenRouter](https://openrouter.ai/)
+  - SDK: [go-openrouter](https://github.com/reVrost/go-openrouter)
 
 _\* = subject to change_
+
+### Tech Stack Rationale
+
+- Go: Go is my (Kyle) favorite language. It is fast, reliable, easy to use, and is a great language for building modular systems such as this. It is always my go-to.
+- Alpaca: Alpaca provides a wonderful paper trading API and dashboard. It also has suplemental APIs such as the Clock and Assets API. It is also free for Paper trading.
+- Gemini 2.5 Flash: Gemini 2.5 Flash is part of Google's latest Gemini releases. According to OpenRouter's rankings, it is ranked #1 in Finance and Academia. It is also insanely cheap and fast, each request we make costs ~$0.006.
 
 ## Deliverables
 

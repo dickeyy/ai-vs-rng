@@ -6,7 +6,11 @@ import (
 	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 )
 
-func ParseSymbols() ([]string, error) {
+var (
+	Symbols []string
+)
+
+func ParseSymbols() error {
 	d, err := alpaca.NewClient(alpaca.ClientOpts{
 		APIKey:    os.Getenv("ALPACA_KEY"),
 		APISecret: os.Getenv("ALPACA_SECRET"),
@@ -16,7 +20,7 @@ func ParseSymbols() ([]string, error) {
 		AssetClass: "us_equity",
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	symbols := make([]string, 0, len(d))
@@ -26,5 +30,6 @@ func ParseSymbols() ([]string, error) {
 		}
 	}
 
-	return symbols, nil
+	Symbols = symbols
+	return nil
 }
