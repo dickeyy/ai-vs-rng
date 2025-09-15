@@ -22,7 +22,11 @@ This project explores the efficacy of various trading strategies in a simulated 
 - Main language: [Go v1.24.1](https://go.dev/)
 - Stock market API: [Alpaca](https://alpaca.markets/)
   - SDK: [alpaca-trade-api-go](https://github.com/alpacahq/alpaca-trade-api-go/)
-- LLM: TBD
+- LLM: [Gemini 2.0 Flash](https://openrouter.ai/google/gemini-2.0-flash-001)\*
+  - Provider: [OpenRouter](https://openrouter.ai/)\*
+  - SDK: [go-openrouter](https://github.com/reVrost/go-openrouter)\*
+
+_\* = subject to change_
 
 ## Deliverables
 
