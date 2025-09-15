@@ -46,6 +46,7 @@ The program loads `./.env.local` on startup and will exit if it is missing.
 ```bash
 ALPACA_KEY=your_key
 ALPACA_SECRET=your_secret
+OPENROUTER_KEY=your_key
 ```
 
 ## Usage
