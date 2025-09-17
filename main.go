@@ -50,8 +50,20 @@ func init() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	if debug || devMode {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-		log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
+		if os.Getenv("AXIOM_TOKEN") == "" {
+			log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
+			log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+			log.Warn().Msg("Axiom token not set, logging to stderr only")
+		} else {
+			writer, err := axiomAdapter.New(
+				axiomAdapter.SetDataset(os.Getenv("AXIOM_DATASET_DEV")),
+			)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Error initializing Axiom adapter")
+			}
+			log.Logger = log.Output(io.MultiWriter(zerolog.ConsoleWriter{Out: os.Stderr}, writer))
+		}
 	} else {
 		if os.Getenv("AXIOM_TOKEN") == "" {
 			log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
