@@ -22,21 +22,22 @@ type RNGStrategist struct {
 	types.AgentState
 	broker       types.Broker
 	AlpacaClient *alpaca.Client
+	tick         <-chan time.Time
 }
 
 var (
 	lastTradeSymbol = ""
 )
 
-func NewRNGAgent(name string, symbols []string) *RNGStrategist {
-	alpacaClient, account, holdings, err := services.InitializeAlpaca(os.Getenv("ALPACA_KEY"), os.Getenv("ALPACA_SECRET"))
+func NewRNGAgent(name string) *RNGStrategist {
+	alpacaClient, account, holdings, err := services.InitializeAlpaca(os.Getenv("ALPACA_KEY_RNG"), os.Getenv("ALPACA_SECRET_RNG"))
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error initializing Alpaca")
 	}
 
 	return &RNGStrategist{
 		Name:    name,
-		Symbols: symbols,
+		Symbols: utils.Symbols,
 		AgentState: types.AgentState{
 			Account:  *account,
 			Holdings: holdings,
@@ -52,25 +53,41 @@ func (a *RNGStrategist) SetBroker(broker types.Broker) {
 	a.broker = broker
 }
 
+// SetTickChannel sets the shared tick channel for the RNG Strategist.
+func (a *RNGStrategist) SetTickChannel(tick <-chan time.Time) {
+	a.AgentState.Mu.Lock()
+	defer a.AgentState.Mu.Unlock()
+	a.tick = tick
+}
+
 func (a *RNGStrategist) Run(ctx context.Context) error {
-	// Simulate a ticker within the agent
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	// Use shared tick channel if provided, otherwise fall back to internal ticker
+	var tickC <-chan time.Time
+	if a.tick != nil {
+		tickC = a.tick
+	} else {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		tickC = ticker.C
+	}
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-tickC:
 			// make sure the market is open (only applies to non-dev mode)
 			if !utils.IsTradingHours() {
-				log.Debug().Str("agent", a.Name).Msg("Not trading hours, skipping")
+				log.Debug().Str("agent", a.Name).Msg("Not trading hours, skipping tick")
 				continue
 			}
 
-			// process trade
+			// get a trade decision
 			log.Info().Str("agent", a.Name).Msg("Making a random decision")
-			trade := a.makeRandomDecision()
+			a.updateAgentState()
+			trade := a.makeDecision()
+
+			// process trade
 			if trade != nil {
-				// check last trade symbolt to avoid wash trading
+				// check last trade symbol to avoid wash trading
 				if trade.Symbol == lastTradeSymbol {
 					log.Info().Str("agent", a.Name).Str("symbol", trade.Symbol).Msg("Skipping trade, last trade was the same symbol")
 					continue
@@ -78,24 +95,7 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 				lastTradeSymbol = trade.Symbol
 
 				// Submit the trade to the broker with a completion callback
-				a.broker.SubmitTrade(ctx, trade, func(processed *types.Trade, err error) {
-					if err != nil {
-						log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
-						return
-					}
-
-					if processed == nil {
-						log.Error().Str("agent", a.Name).Str("order_id", trade.ID).Msg("Broker completed with nil trade")
-						return
-					}
-
-					// perform state updates only after broker finished processing
-					a.AgentState.Mu.Lock()
-					defer a.AgentState.Mu.Unlock()
-					a.updateAgentState()
-
-					log.Info().Str("agent", a.Name).Str("order_id", processed.ID).Msg("State updated and saved for processed trade")
-				}, a.AlpacaClient)
+				a.broker.SubmitTrade(ctx, trade, a.onComplete, a.AlpacaClient)
 
 				log.Info().Str("agent", a.Name).Str("action", trade.Action).Str("order_id", trade.ID).Msg("Submitted order to broker")
 			} else {
@@ -127,8 +127,8 @@ func (a *RNGStrategist) GetBuyingPower(ctx context.Context) (decimal.Decimal, er
 	return a.AgentState.Account.BuyingPower, nil
 }
 
-// makeRandomDecision handles the agent's core algorithm
-func (a *RNGStrategist) makeRandomDecision() *types.Trade {
+// makeDecision handles the agent's core algorithm
+func (a *RNGStrategist) makeDecision() *types.Trade {
 	// get a number between 1-100
 	r := utils.RNG(1, 100)
 	log.Debug().Str("agent", a.Name).Int("random_value", r).Msg("Random number generated")
@@ -184,6 +184,29 @@ func (a *RNGStrategist) makeRandomDecision() *types.Trade {
 	}
 }
 
+func (a *RNGStrategist) onComplete(trade *types.Trade, processed *types.Trade, err error) {
+	if err != nil {
+		log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
+		return
+	}
+
+	if processed == nil {
+		log.Error().Str("agent", a.Name).Str("order_id", trade.ID).Msg("Broker completed with nil trade")
+		return
+	}
+
+	// wait for 10 seconds to make sure Alpaca fills the order
+	time.Sleep(10 * time.Second)
+
+	// perform state updates only after broker finished processing
+	a.AgentState.Mu.Lock()
+	defer a.AgentState.Mu.Unlock()
+	a.updateAgentState()
+
+	log.Info().Str("agent", a.Name).Str("order_id", processed.ID).Msg("State updated and saved for processed trade")
+}
+
+// updateAgentState updates the agent state with the latest account and holdings from Alpaca
 func (a *RNGStrategist) updateAgentState() {
 	// fetch the latest account and holdings from alpaca
 	account, err := services.GetAccount(a.AlpacaClient)

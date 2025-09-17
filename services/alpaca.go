@@ -68,6 +68,7 @@ func PlaceOrder(trade *types.Trade, client *a.Client) (*types.Trade, error) {
 		// Persist the Alpaca order id onto the trade for downstream usage
 		trade.AlpacaID = order.ID
 	}
+
 	return trade, nil
 }
 

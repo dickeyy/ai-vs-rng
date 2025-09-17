@@ -22,7 +22,7 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Issue: Agent refreshes account/holdings from Alpaca in callback but does not call `SaveState` afterward.
   - Proposed fix: After `updateAgentState`, call `SaveState` and handle/log errors to persist latest account/holdings.
 
-- [ ] Guard against empty `symbols` set
+- [x] Guard against empty `symbols` set
 
   - Files: `utils/parse-symbols.go`, `main.go`
   - Issue: `utils.RandomString(a.Symbols)` panics if the slice is empty.

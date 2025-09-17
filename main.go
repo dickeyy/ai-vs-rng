@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
 
+	axiomAdapter "github.com/axiomhq/axiom-go/adapters/zerolog"
 	"github.com/dickeyy/cis-320/agent"
 	"github.com/dickeyy/cis-320/broker"
 	"github.com/dickeyy/cis-320/services"
@@ -39,6 +41,11 @@ func parseFlags() {
 func init() {
 	parseFlags()
 
+	err := godotenv.Load(".env.local")
+	if err != nil {
+		log.Fatal().Msg("Error loading .env file")
+	}
+
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	if debug || devMode {
@@ -46,12 +53,18 @@ func init() {
 		log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	} else {
-		log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
-	}
-
-	err := godotenv.Load(".env.local")
-	if err != nil {
-		log.Fatal().Msg("Error loading .env file")
+		if os.Getenv("AXIOM_TOKEN") == "" {
+			log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
+			log.Warn().Msg("Axiom token not set, logging to stderr only")
+		} else {
+			writer, err := axiomAdapter.New(
+				axiomAdapter.SetDataset(os.Getenv("AXIOM_DATASET")),
+			)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Error initializing Axiom adapter")
+			}
+			log.Logger = zerolog.New(io.MultiWriter(os.Stderr, writer)).With().Caller().Timestamp().Logger()
+		}
 	}
 }
 
@@ -69,9 +82,13 @@ func initializeAgents(tradeBroker *broker.Broker) []types.Agent {
 	}
 	log.Info().Int("symbols_count", len(utils.Symbols)).Msg("Parsed symbols")
 
-	rngAgent := agent.NewRNGAgent("RNG_Agent", utils.Symbols)
+	rngAgent := agent.NewRNGAgent("RNG_Agent")
 	rngAgent.SetBroker(tradeBroker)
-	agentsToStart := []types.Agent{rngAgent}
+
+	llmAgent := agent.NewLLMAgent("LLM_Agent")
+	llmAgent.SetBroker(tradeBroker)
+
+	agentsToStart := []types.Agent{rngAgent, llmAgent}
 	return agentsToStart
 }
 

@@ -12,8 +12,8 @@ everything for us and even gives us a nice dashboard to view portfolio and perfo
 - every part of the system is designed to be modular so we can easily modify individual parts without affecting the whole thing
 
 Order flow:
-agent makes decision -> submit trade to broker ->
+agent updates state -> agent makes decision -> submit trade to broker ->
 broker processes trade and submits it to alpaca -> alpaca places trade ->
-if successful, broker calls the callback function -> agent fetches new account and holdings object from alpaca
+if successful, broker calls the callback function -> agent updates state again
 
 agents avoid wash trading by checking the last trade symbol and skipping if it is the same symbol

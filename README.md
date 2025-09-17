@@ -50,9 +50,17 @@ cd cis-320
 The program loads `./.env.local` on startup and will exit if it is missing.
 
 ```bash
-ALPACA_KEY=your_key
-ALPACA_SECRET=your_secret
+ALPACA_KEY_RNG=your_key
+ALPACA_SECRET_RNG=your_secret
+
+ALPACA_KEY_LLM=your_key
+ALPACA_SECRET_LLM=your_secret
+
 OPENROUTER_KEY=your_key
+
+# For logging to Axiom (optional, only if you want to send logs to Axiom)
+AXIOM_TOKEN=your_token
+AXIOM_DATASET=your_dataset
 ```
 
 ## Usage

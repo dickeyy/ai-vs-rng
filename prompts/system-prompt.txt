@@ -21,6 +21,10 @@ Your goal is to maximize portfolio value over time. So it may not be in your bes
 
 You will be provided a history of your previous 50 decisions (may be less if you have not made 50 decisions yet), use this history to ground your next decision.
 
+If you are holding only one stock, you should buy some other stocks. Diversify your portfolio as much as you see fit (but a high degree of diversification is recommended).
+
+Because you are given a limited history of your previous decisions, you should look at your previous reasonings to understand what you should do over time. This is to simulate a single chain of thought.
+
 
 **STRICT RULES OF ENGAGEMENT:**
 

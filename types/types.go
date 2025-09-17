@@ -80,9 +80,12 @@ type Agent interface {
 	GetBuyingPower(ctx context.Context) (decimal.Decimal, error)
 
 	SetBroker(broker Broker)
+
+	// SetTickChannel provides a shared tick channel for centralized scheduling
+	SetTickChannel(tick <-chan time.Time)
 }
 
 // Broker defines the interface for interacting with the trading broker.
 type Broker interface {
-	SubmitTrade(ctx context.Context, trade *Trade, onComplete func(*Trade, error), client *alpaca.Client)
+	SubmitTrade(ctx context.Context, trade *Trade, onComplete func(*Trade, *Trade, error), client *alpaca.Client)
 }

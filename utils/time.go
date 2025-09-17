@@ -14,8 +14,8 @@ func IsTradingHours() bool {
 
 	open, err := alpaca.NewClient(alpaca.ClientOpts{
 		// use RNG api creds (doesnt really matter we just need some valid creds)
-		APIKey:    os.Getenv("ALPACA_KEY"),
-		APISecret: os.Getenv("ALPACA_SECRET"),
+		APIKey:    os.Getenv("ALPACA_KEY_RNG"),
+		APISecret: os.Getenv("ALPACA_SECRET_RNG"),
 		BaseURL:   "https://paper-api.alpaca.markets",
 	}).GetClock()
 

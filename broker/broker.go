@@ -28,12 +28,12 @@ func NewBroker() *Broker {
 // workItem is a unit of work for the broker queue containing the trade and an optional completion callback.
 type workItem struct {
 	trade      *types.Trade
-	onComplete func(*types.Trade, error)
+	onComplete func(*types.Trade, *types.Trade, error)
 	client     *alpaca.Client
 }
 
 // SubmitTrade adds a trade to the broker's queue for processing.
-func (b *Broker) SubmitTrade(ctx context.Context, trade *types.Trade, onComplete func(*types.Trade, error), client *alpaca.Client) {
+func (b *Broker) SubmitTrade(ctx context.Context, trade *types.Trade, onComplete func(*types.Trade, *types.Trade, error), client *alpaca.Client) {
 	b.tradeQueue.Enqueue(&workItem{trade: trade, onComplete: onComplete, client: client})
 }
 
@@ -59,7 +59,7 @@ func (b *Broker) ProcessTrades(ctx context.Context) {
 						if err != nil {
 							log.Error().Err(err).Str("order_id", trade.ID).Msg("Error placing order")
 							if wi.onComplete != nil {
-								wi.onComplete(nil, err)
+								wi.onComplete(nil, nil, err)
 							}
 						} else {
 							if processedTrade != nil {
@@ -70,9 +70,9 @@ func (b *Broker) ProcessTrades(ctx context.Context) {
 							if wi.onComplete != nil {
 								// prefer returning processed trade if available
 								if processedTrade != nil {
-									wi.onComplete(processedTrade, nil)
+									wi.onComplete(processedTrade, processedTrade, nil)
 								} else {
-									wi.onComplete(trade, nil)
+									wi.onComplete(trade, trade, nil)
 								}
 							}
 						}
