@@ -15,7 +15,7 @@ func StartAgents(agents []types.Agent) {
 	// Create a single centralized ticker
 	var interval time.Duration = 15 * time.Minute
 	if utils.DevMode {
-		interval = 5 * time.Second
+		interval = 20 * time.Second
 	}
 	ticker := time.NewTicker(interval)
 

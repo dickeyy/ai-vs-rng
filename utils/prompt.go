@@ -77,10 +77,6 @@ func GetUserPrompt(agentState *types.AgentState, previousResponses []string) (st
 		tradableSymbols,
 	)
 
-	if err := os.WriteFile("prompts/example-user-prompt.txt", []byte(userPrompt), 0644); err != nil {
-		return "", fmt.Errorf("failed to write example user prompt to file: %w", err)
-	}
-
 	return userPrompt, nil
 }
 
