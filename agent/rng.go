@@ -195,8 +195,8 @@ func (a *RNGStrategist) onComplete(trade *types.Trade, processed *types.Trade, e
 		return
 	}
 
-	// wait for 10 seconds to make sure Alpaca fills the order
-	time.Sleep(10 * time.Second)
+	// wait for 5 seconds to make sure Alpaca fills the order
+	time.Sleep(5 * time.Second)
 
 	// perform state updates only after broker finished processing
 	a.AgentState.Mu.Lock()
