@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -124,6 +125,12 @@ func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
 		return nil
 	}
 
+	err = a.validateTradeDecision(tradeDecision)
+	if err != nil {
+		log.Error().Err(err).Str("agent", a.Name).Msg("Error validating trade decision")
+		return nil
+	}
+
 	switch tradeDecision.Action {
 	case "BUY":
 		return &types.Trade{
@@ -187,4 +194,44 @@ func (a *LLMStrategist) updateAgentState() {
 	// update the agent state
 	a.AgentState.Account = *account
 	a.AgentState.Holdings = holdings
+}
+
+func (a *LLMStrategist) getHolding(symbol string) (alpaca.Position, error) {
+	for _, holding := range a.AgentState.Holdings {
+		if holding.Symbol == symbol {
+			return holding, nil
+		}
+	}
+	return alpaca.Position{}, fmt.Errorf("holding not found")
+}
+
+// validateTradeDecision validates the trade decision
+func (a *LLMStrategist) validateTradeDecision(tradeDecision *types.TradeDecision) error {
+	if tradeDecision.Symbol == "" {
+		return fmt.Errorf("symbol is required")
+	}
+
+	switch tradeDecision.Action {
+	case "BUY":
+		if tradeDecision.Amount == nil || tradeDecision.Amount.IsZero() {
+			return fmt.Errorf("amount is required")
+		}
+		if tradeDecision.Amount.GreaterThan(a.AgentState.Account.BuyingPower) {
+			return fmt.Errorf("amount is greater than buying power")
+		}
+	case "SELL":
+		if tradeDecision.Quantity == nil || tradeDecision.Quantity.IsZero() {
+			return fmt.Errorf("quantity is required")
+		}
+		// get the holding for the symbol
+		holding, err := a.getHolding(tradeDecision.Symbol)
+		if err != nil {
+			return fmt.Errorf("holding not found")
+		}
+		if tradeDecision.Quantity.GreaterThan(holding.QtyAvailable) {
+			return fmt.Errorf("quantity is greater than available quantity")
+		}
+	}
+
+	return nil
 }

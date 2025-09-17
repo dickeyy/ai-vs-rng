@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"time"
@@ -148,7 +149,7 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 
 		// make the base trade object, this will be updated later with real market data by the broker
 		var tradeAmount = decimal.NewFromFloat(spend)
-		return &types.Trade{
+		trade := &types.Trade{
 			ID:        utils.GenerateOrderID(),
 			AlpacaID:  "", // to be set by the Alpaca service after placement
 			Symbol:    symbol,
@@ -157,6 +158,12 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 			Timestamp: time.Now(),
 			AgentName: a.Name,
 		}
+		err := a.validateTrade(trade)
+		if err != nil {
+			log.Error().Err(err).Str("agent", a.Name).Msg("Error validating trade")
+			return nil
+		}
+		return trade
 	} else if r <= 66 {
 		// Sell
 		// choose a random holding
@@ -169,7 +176,7 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 
 		// make the base trade object, this will be updated later with real market data by the broker
 		var tradeQuantity = decimal.NewFromFloat(sell)
-		return &types.Trade{
+		trade := &types.Trade{
 			ID:        utils.GenerateOrderID(),
 			AlpacaID:  "", // to be set by the Alpaca service after placement
 			Symbol:    holding.Symbol,
@@ -178,6 +185,12 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 			Timestamp: time.Now(),
 			AgentName: a.Name,
 		}
+		err := a.validateTrade(trade)
+		if err != nil {
+			log.Error().Err(err).Str("agent", a.Name).Msg("Error validating trade")
+			return nil
+		}
+		return trade
 	} else {
 		// Hold
 		return nil
@@ -221,4 +234,44 @@ func (a *RNGStrategist) updateAgentState() {
 	// update the agent state
 	a.AgentState.Account = *account
 	a.AgentState.Holdings = holdings
+}
+
+func (a *RNGStrategist) getHolding(symbol string) (alpaca.Position, error) {
+	for _, holding := range a.AgentState.Holdings {
+		if holding.Symbol == symbol {
+			return holding, nil
+		}
+	}
+	return alpaca.Position{}, fmt.Errorf("holding not found")
+}
+
+// validateTradeDecision validates the trade decision
+func (a *RNGStrategist) validateTrade(trade *types.Trade) error {
+	if trade.Symbol == "" {
+		return fmt.Errorf("symbol is required")
+	}
+
+	switch trade.Action {
+	case "BUY":
+		if trade.Amount == nil || trade.Amount.IsZero() {
+			return fmt.Errorf("amount is required")
+		}
+		if trade.Amount.GreaterThan(a.AgentState.Account.BuyingPower) {
+			return fmt.Errorf("amount is greater than buying power")
+		}
+	case "SELL":
+		if trade.Quantity == nil || trade.Quantity.IsZero() {
+			return fmt.Errorf("quantity is required")
+		}
+		// get the holding for the symbol
+		holding, err := a.getHolding(trade.Symbol)
+		if err != nil {
+			return fmt.Errorf("holding not found")
+		}
+		if trade.Quantity.GreaterThan(holding.QtyAvailable) {
+			return fmt.Errorf("quantity is greater than available quantity")
+		}
+	}
+
+	return nil
 }
