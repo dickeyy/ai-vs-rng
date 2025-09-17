@@ -126,7 +126,7 @@ func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
 	}
 
 	err = a.validateTradeDecision(tradeDecision)
-	if err != nil {
+	if err != nil && tradeDecision.Action != "NONE" {
 		log.Error().Err(err).Str("agent", a.Name).Msg("Error validating trade decision")
 		return nil
 	}
@@ -159,12 +159,20 @@ func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
 
 func (a *LLMStrategist) onComplete(trade *types.Trade, processed *types.Trade, err error) {
 	if err != nil {
-		log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
+		if trade != nil {
+			log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
+		} else {
+			log.Error().Err(err).Str("agent", a.Name).Msg("Trade failed or was rejected")
+		}
 		return
 	}
 
 	if processed == nil {
-		log.Error().Str("agent", a.Name).Str("order_id", trade.ID).Msg("Broker completed with nil trade")
+		if trade != nil {
+			log.Error().Str("agent", a.Name).Str("order_id", trade.ID).Msg("Broker completed with nil trade")
+		} else {
+			log.Error().Str("agent", a.Name).Msg("Broker completed with nil trade")
+		}
 		return
 	}
 

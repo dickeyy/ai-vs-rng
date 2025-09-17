@@ -199,12 +199,20 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 
 func (a *RNGStrategist) onComplete(trade *types.Trade, processed *types.Trade, err error) {
 	if err != nil {
-		log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
+		if trade != nil {
+			log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
+		} else {
+			log.Error().Err(err).Str("agent", a.Name).Msg("Trade failed or was rejected")
+		}
 		return
 	}
 
 	if processed == nil {
-		log.Error().Str("agent", a.Name).Str("order_id", trade.ID).Msg("Broker completed with nil trade")
+		if trade != nil {
+			log.Error().Str("agent", a.Name).Str("order_id", trade.ID).Msg("Broker completed with nil trade")
+		} else {
+			log.Error().Str("agent", a.Name).Msg("Broker completed with nil trade")
+		}
 		return
 	}
 
