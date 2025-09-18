@@ -142,7 +142,7 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 		symbol := utils.RandomString(a.Symbols)
 		// based on the agents capital, choose a random value <= current capital
 		currBalance, _ := a.AgentState.Account.BuyingPower.Float64()
-		spend := math.Floor(utils.RandomFloat(0, currBalance)*100+0.5) / 100
+		spend := math.Floor(utils.RandomFloat(1, currBalance)*100+0.5) / 100
 		// clamp the spend to the current balance
 		spend = math.Min(spend, currBalance)
 		log.Debug().Str("agent", a.Name).Str("symbol", symbol).Float64("amount", spend).Msg("Buying")
@@ -170,7 +170,7 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 		holding := utils.RandomItem(a.AgentState.Holdings)
 		// based on the holding's quantity, choose a random value <= quantity
 		qty, _ := holding.QtyAvailable.Float64()
-		sell := math.Floor(utils.RandomFloat(0, qty)*100+0.5) / 100
+		sell := math.Floor(utils.RandomFloat(1, qty)*100+0.5) / 100
 		sell = math.Min(sell, qty)
 		log.Debug().Str("agent", a.Name).Str("holding", holding.Symbol).Float64("amount", sell).Msg("Selling")
 

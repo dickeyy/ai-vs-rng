@@ -13,7 +13,7 @@ func StartAgents(agents []types.Agent) {
 	log.Info().Msg("Starting agents")
 
 	// Create a single centralized ticker
-	var interval time.Duration = 15 * time.Minute
+	var interval time.Duration = 10 * time.Minute
 	if utils.DevMode {
 		interval = 20 * time.Second
 	}
