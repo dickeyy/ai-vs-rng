@@ -55,7 +55,4 @@ func StartAgents(agents []types.Agent) {
 			log.Info().Str("agent", ag.GetName()).Msg("Agent stopped")
 		}()
 	}
-
-	// The main function will handle the program's lifecycle and graceful shutdown.
-	// No need for a ticker here as agents manage their own timing.
 }
