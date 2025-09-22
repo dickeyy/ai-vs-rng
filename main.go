@@ -48,7 +48,7 @@ func init() {
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	if debug || devMode {
+	if devMode {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
 		if os.Getenv("AXIOM_TOKEN") == "" {
@@ -65,6 +65,9 @@ func init() {
 			log.Logger = log.Output(io.MultiWriter(zerolog.ConsoleWriter{Out: os.Stderr}, writer))
 		}
 	} else {
+		if debug {
+			zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		}
 		if os.Getenv("AXIOM_TOKEN") == "" {
 			log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
 			log.Warn().Msg("Axiom token not set, logging to stderr only")
