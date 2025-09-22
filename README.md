@@ -10,10 +10,10 @@ This project explores the efficacy of various trading strategies in a simulated 
 
 ## Members
 
-- Maya Rodriguez - Group Leader
+- Ana Destasio - Group Leader
+- Maya Rodriguez
 - Kyle Dickey
 - Jesus Giron
-- Ana Destasio
 - Kevin Chisanga
 - Sebastian Dawkins
 
@@ -57,6 +57,8 @@ ALPACA_KEY_LLM=your_key
 ALPACA_SECRET_LLM=your_secret
 
 OPENROUTER_KEY=your_key
+
+REDIS_URL=your_url
 
 # For logging to Axiom (optional, only if you want to send logs to Axiom)
 AXIOM_TOKEN=your_token

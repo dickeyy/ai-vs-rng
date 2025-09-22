@@ -84,6 +84,7 @@ func initializeServices() {
 	// pass dev mode to services for simulated execution
 	utils.SetDevMode(devMode)
 	services.InitializeAI()
+	services.InitializeRedis()
 }
 
 func initializeAgents(tradeBroker *broker.Broker) []types.Agent {

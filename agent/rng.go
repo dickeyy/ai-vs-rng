@@ -101,6 +101,17 @@ func (a *RNGStrategist) Run(ctx context.Context) error {
 				log.Info().Str("agent", a.Name).Str("action", trade.Action).Str("order_id", trade.ID).Msg("Submitted order to broker")
 			} else {
 				log.Info().Str("agent", a.Name).Msg("No trade made")
+				holdTrade := types.Trade{
+					ID:        utils.GenerateOrderID(),
+					AlpacaID:  "",
+					Symbol:    "",
+					Amount:    nil,
+					Quantity:  nil,
+					Action:    "HOLD",
+					Timestamp: time.Now(),
+					AgentName: a.Name,
+				}
+				a.onComplete(nil, &holdTrade, nil)
 			}
 		case <-ctx.Done():
 			log.Info().Str("agent", a.Name).Msg("Shutting down RNG Agent")
@@ -223,6 +234,11 @@ func (a *RNGStrategist) onComplete(trade *types.Trade, processed *types.Trade, e
 	a.AgentState.Mu.Lock()
 	defer a.AgentState.Mu.Unlock()
 	a.updateAgentState()
+
+	err = services.SaveTrade(processed, context.Background())
+	if err != nil {
+		log.Error().Err(err).Str("agent", a.Name).Str("order_id", processed.ID).Msg("Error saving trade")
+	}
 
 	log.Info().Str("agent", a.Name).Str("order_id", processed.ID).Msg("State updated and saved for processed trade")
 }
