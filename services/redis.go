@@ -42,5 +42,11 @@ func SaveTrade(trade *types.Trade, ctx context.Context) error {
 		return err
 	}
 
-	return Redis.Set(ctx, trade.ID, json, 0).Err()
+	// save the trade object to the trades:AgentName list
+	err = Redis.LPush(ctx, fmt.Sprintf("trades:%s", trade.AgentName), json).Err()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
