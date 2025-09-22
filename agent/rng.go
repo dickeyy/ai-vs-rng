@@ -177,6 +177,11 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 		return trade
 	} else if r <= 66 {
 		// Sell
+		// check if we have any holdings to sell
+		if len(a.AgentState.Holdings) == 0 {
+			log.Debug().Str("agent", a.Name).Msg("No holdings available to sell, holding instead")
+			return nil
+		}
 		// choose a random holding
 		holding := utils.RandomItem(a.AgentState.Holdings)
 		// based on the holding's quantity, choose a random value <= quantity
