@@ -12,12 +12,11 @@ import (
 func StartAgents(agents []types.Agent) {
 	log.Info().Msg("Starting agents")
 
-	// Create a single centralized ticker
-	var interval time.Duration = 10 * time.Minute
+	// Create a centralized aligned ticker (wall-clock aligned)
+	var period time.Duration = 10 * time.Minute
 	if utils.DevMode {
-		interval = 20 * time.Second
+		period = 20 * time.Second
 	}
-	ticker := time.NewTicker(interval)
 
 	// Create per-agent tick channels and set them on agents
 	tickChans := make([]chan time.Time, 0, len(agents))
@@ -27,16 +26,24 @@ func StartAgents(agents []types.Agent) {
 		a.SetTickChannel(ch)
 	}
 
-	// Broadcast ticks to all agents
+	// Broadcast aligned ticks to all agents
 	go func() {
-		for t := range ticker.C {
+		for {
+			now := time.Now()
+			next := now.Truncate(period).Add(period)
+			sleep := time.Until(next)
+			if sleep > 0 {
+				timer := time.NewTimer(sleep)
+				<-timer.C
+				timer.Stop()
+			}
+
+			t := time.Now()
 			for _, ch := range tickChans {
 				select {
 				case ch <- t:
-					// delivered
 					log.Debug().Msg("Tick delivered to agents")
 				default:
-					// drop if receiver is slow to avoid blocking
 					log.Warn().Msg("Tick dropped from agents")
 				}
 			}
