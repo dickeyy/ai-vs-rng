@@ -152,10 +152,12 @@ func (a *RNGStrategist) makeDecision() *types.Trade {
 		// choose a random symbol
 		symbol := utils.RandomString(a.Symbols)
 		// based on the agents capital, choose a random value <= current capital
-		currBalance, _ := a.AgentState.Account.BuyingPower.Float64()
-		spend := math.Floor(utils.RandomFloat(1, currBalance)*100+0.5) / 100
+		buyingPower, _ := a.AgentState.Account.BuyingPower.Float64()
+		dayTradePower, _ := a.AgentState.Account.DaytradingBuyingPower.Float64()
+
+		spend := math.Floor(utils.RandomFloat(1, math.Min(buyingPower, dayTradePower))*100+0.5) / 100
 		// clamp the spend to the current balance
-		spend = math.Min(spend, currBalance)
+		spend = math.Min(spend, math.Min(buyingPower, dayTradePower))
 		log.Debug().Str("agent", a.Name).Str("symbol", symbol).Float64("amount", spend).Msg("Buying")
 
 		// make the base trade object, this will be updated later with real market data by the broker
