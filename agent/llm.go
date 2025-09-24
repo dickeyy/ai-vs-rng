@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"time"
 
@@ -241,10 +240,8 @@ func (a *LLMStrategist) validateTradeDecision(tradeDecision *types.TradeDecision
 		if tradeDecision.Amount == nil || tradeDecision.Amount.IsZero() {
 			return fmt.Errorf("amount is required")
 		}
-		buyingPower, _ := a.AgentState.Account.BuyingPower.Float64()
-		dayTradePower, _ := a.AgentState.Account.DaytradingBuyingPower.Float64()
-		if tradeDecision.Amount.GreaterThan(decimal.NewFromFloat(math.Min(buyingPower, dayTradePower))) {
-			return fmt.Errorf("amount is greater than buying power/day trade power")
+		if tradeDecision.Amount.GreaterThan(a.AgentState.Account.BuyingPower) {
+			return fmt.Errorf("amount is greater than buying power")
 		}
 	case "SELL":
 		if tradeDecision.Quantity == nil || tradeDecision.Quantity.IsZero() {

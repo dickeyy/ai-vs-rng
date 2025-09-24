@@ -287,10 +287,8 @@ func (a *RNGStrategist) validateTrade(trade *types.Trade) error {
 		if trade.Amount == nil || trade.Amount.IsZero() {
 			return fmt.Errorf("amount is required")
 		}
-		dayTradePower, _ := a.AgentState.Account.DaytradingBuyingPower.Float64()
-		buyingPower, _ := a.AgentState.Account.BuyingPower.Float64()
-		if trade.Amount.GreaterThan(decimal.NewFromFloat(math.Min(buyingPower, dayTradePower))) {
-			return fmt.Errorf("amount is greater than buying power/day trade power")
+		if trade.Amount.GreaterThan(a.AgentState.Account.BuyingPower) {
+			return fmt.Errorf("amount is greater than buying power")
 		}
 	case "SELL":
 		if trade.Quantity == nil || trade.Quantity.IsZero() {
