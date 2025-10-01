@@ -16,7 +16,7 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Issue: Random spend can be `$0.00`, causing broker/API errors.
   - Proposed fix: Enforce a minimum notional (e.g., `$1.00`) and clamp to available balance; skip trade if balance < minimum.
 
-- [ ] Persist state and reconcile from Alpaca after each trade
+- [x] Persist state and reconcile from Alpaca after each trade
 
   - Files: `agent/rng.go`
   - Issue: Agent refreshes account/holdings from Alpaca in callback but does not call `SaveState` afterward.
@@ -28,7 +28,7 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Issue: `utils.RandomString(a.Symbols)` panics if the slice is empty.
   - Proposed fix: Trim and ignore blank lines in parser; fail fast if no symbols; skip buy if `len(symbols) == 0`.
 
-- [ ] SELL: Verify holdings selection and quantity derivation
+- [x] SELL: Verify holdings selection and quantity derivation
 
   - Files: `agent/rng.go`
   - Issues:
@@ -36,7 +36,7 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
     - Uses `holding.QtyAvailable`; verify this field exists and its type on `alpaca.Position`.
   - Proposed fix: Handle empty holdings by skipping SELL; use correct quantity field and safe decimal conversions.
 
-- [ ] SELL: Validate share quantity and fractional trading
+- [x] SELL: Validate share quantity and fractional trading
 
   - Files: `agent/rng.go`, `services/alpaca.go`
   - Issue: Random fractional share sells may be invalid if fractional trading is not enabled.
@@ -84,7 +84,7 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Issue: `trade.OrderID` is set to a client-generated UUID, not Alpaca order ID.
   - Proposed fix: Add field or update to store Alpaca `order.ID` for traceability; keep client ID separately if useful.
 
-- [ ] Use a shared Alpaca client per process (performance)
+- [x] Use a shared Alpaca client per process (performance)
 
   - Files: `services/alpaca.go`
   - Issue: Client is initialized and torn down for each call, which is inefficient.
@@ -103,7 +103,7 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Issue: On error, trades are not persisted (comment says both successful and failed, but code only saves on success).
   - Proposed fix: Save failed attempts with a status or extend schema (e.g., add `status`, `error_message`).
 
-- [ ] Market/clock checks before placing BUYs (optional)
+- [x] Market/clock checks before placing BUYs (optional)
 
   - Files: `services/alpaca.go` (pre-check) or agent level
   - Proposed fix: Optionally check market open or `TradingBlocked` and skip trade early to reduce noisy errors.
@@ -113,30 +113,25 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
   - Files: `services/alpaca.go`
   - Proposed fix: Consider exponential backoff or longer deadline during volatile periods; log last known status on timeout.
 
-- [ ] Align DB schema and code with new `types.Trade`
-  - Files: `sql/trades.sql`, `storage/trades.go`, any persistence usage
-  - Issue: DB schema/code expect fields like `order_id`; current flow uses `ID` and `AlpacaID`, and storage layer is unused.
-  - Proposed fix: Decide whether to persist trades. If yes, update schema and storage to record `ID`, `AlpacaID`, symbol, qty, amount, price, action, timestamp, and status.
-
 #### Validation and guardrails
 
-- [ ] Skip BUY when `CurrentBalance <= 0` or `< min_notional`
+- [x] Skip BUY when `CurrentBalance <= 0` or `< min_notional`
 
   - Files: `agent/rng.go`
   - Proposed fix: Early return `nil` trade when insufficient funds.
 
-- [ ] Clamp notional to available cash
+- [x] Clamp notional to available cash
 
   - Files: `agent/rng.go`
   - Proposed fix: Ensure `spend <= CurrentBalance` after rounding; if rounding pushes over, reduce by a cent.
 
-- [ ] Concurrency safety for balance reads vs. callback updates
+- [x] Concurrency safety for balance reads vs. callback updates
 
   - Files: `agent/rng.go`
   - Issue: `makeRandomDecision` reads state without lock while callback updates it; potential data races.
   - Proposed fix: Read under mutex or atomically snapshot required fields; avoid holding lock during network calls.
 
-- [ ] Guard SELL against zero/near-zero quantities
+- [x] Guard SELL against zero/near-zero quantities
   - Files: `agent/rng.go`
   - Issue: Randomization may produce `0` shares; Alpaca may reject.
   - Proposed fix: Enforce minimum of 1 share (or smallest allowed fractional increment) when fractional is disabled.
@@ -152,9 +147,6 @@ Scope: RNG buy path across `agent/rng.go`, `broker/broker.go`, `services/alpaca.
 
   - Files: `agent/rng.go`, `broker/broker.go`, `services/alpaca.go`
   - Proposed fix: Log `symbol`, `requested_qty`, `filled_qty`, `filled_avg_price`, proceeds, and post-trade `cash`/`position`.
-
-- [ ] Expose Prometheus counters/gauges
-  - Proposed fix: Add metrics for submitted/filled/failed BUYs, cash balance, and per-symbol positions.
 
 #### Tests to add
 

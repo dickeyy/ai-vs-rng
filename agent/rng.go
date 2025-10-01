@@ -141,6 +141,10 @@ func (a *RNGStrategist) GetBuyingPower(ctx context.Context) (decimal.Decimal, er
 
 // makeDecision handles the agent's core algorithm
 func (a *RNGStrategist) makeDecision() *types.Trade {
+	// lock the agent state
+	a.AgentState.Mu.Lock()
+	defer a.AgentState.Mu.Unlock()
+
 	// get a number between 1-100
 	r := utils.RNG(1, 100)
 	log.Debug().Str("agent", a.Name).Int("random_value", r).Msg("Random number generated")

@@ -130,12 +130,27 @@ func (a *LLMStrategist) GetBuyingPower(ctx context.Context) (decimal.Decimal, er
 
 // makeDecision handles the agent's core algorithm
 func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
-	tradeDecision, err := services.GetAITradeDecision(ctx, &a.AgentState)
+	// snapshot state under lock
+	a.AgentState.Mu.Lock()
+	account := a.AgentState.Account
+	holdings := make([]alpaca.Position, len(a.AgentState.Holdings))
+	copy(holdings, a.AgentState.Holdings)
+	a.AgentState.Mu.Unlock()
+
+	// create temp state for AI call
+	tempState := &types.AgentState{
+		Account:  account,
+		Holdings: holdings,
+	}
+
+	// get a trade decision from the ai
+	tradeDecision, err := services.GetAITradeDecision(ctx, tempState)
 	if err != nil {
 		log.Error().Err(err).Str("agent", a.Name).Msg("Error getting AI trade decision")
 		return nil
 	}
 
+	// validate the trade
 	err = a.validateTradeDecision(tradeDecision)
 	if err != nil && tradeDecision.Action != "NONE" {
 		log.Error().Err(err).Str("agent", a.Name).Msg("Error validating trade decision")
