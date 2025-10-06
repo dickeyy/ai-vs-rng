@@ -23,6 +23,7 @@ type LLMStrategist struct {
 	broker       types.Broker
 	AlpacaClient *alpaca.Client
 	tick         <-chan time.Time
+	LastError    error
 }
 
 func NewLLMAgent(name string) *LLMStrategist {
@@ -135,6 +136,7 @@ func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
 	account := a.AgentState.Account
 	holdings := make([]alpaca.Position, len(a.AgentState.Holdings))
 	copy(holdings, a.AgentState.Holdings)
+	lastError := a.LastError
 	a.AgentState.Mu.Unlock()
 
 	// create temp state for AI call
@@ -144,7 +146,7 @@ func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
 	}
 
 	// get a trade decision from the ai
-	tradeDecision, err := services.GetAITradeDecision(ctx, tempState)
+	tradeDecision, err := services.GetAITradeDecision(ctx, tempState, lastError)
 	if err != nil {
 		log.Error().Err(err).Str("agent", a.Name).Msg("Error getting AI trade decision")
 		return nil
@@ -192,6 +194,11 @@ func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
 
 func (a *LLMStrategist) onComplete(trade *types.Trade, processed *types.Trade, err error) {
 	if err != nil {
+		// Save the error for future decision making
+		a.AgentState.Mu.Lock()
+		a.LastError = err
+		a.AgentState.Mu.Unlock()
+
 		if trade != nil {
 			log.Error().Err(err).Str("agent", a.Name).Str("order_id", trade.ID).Msg("Trade failed or was rejected")
 		} else {
@@ -216,6 +223,9 @@ func (a *LLMStrategist) onComplete(trade *types.Trade, processed *types.Trade, e
 	a.AgentState.Mu.Lock()
 	defer a.AgentState.Mu.Unlock()
 	a.updateAgentState()
+
+	// Clear any previous error since this trade succeeded
+	a.LastError = nil
 
 	err = services.SaveTrade(processed, context.Background())
 	if err != nil {

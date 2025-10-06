@@ -31,7 +31,7 @@ func GetSystemPrompt() (string, error) {
 }
 
 // TODO: Test this out make sure it actually works and gives an output that the LLM can understand
-func GetUserPrompt(agentState *types.AgentState, previousResponses []string) (string, error) {
+func GetUserPrompt(agentState *types.AgentState, previousResponses []string, lastError error) (string, error) {
 	agentState.Mu.Lock()
 	defer agentState.Mu.Unlock()
 
@@ -65,6 +65,7 @@ func GetUserPrompt(agentState *types.AgentState, previousResponses []string) (st
 - Current total portfolio value: %s USD
 - List of your previous trades: %s
 - List of tradable symbols: %s
+- Last trade error: %s
 ---
 **Based on the above information and your directives, generate a single JSON object representing your optimal trading decision or no action.**`,
 		string(accountJSON),
@@ -73,6 +74,7 @@ func GetUserPrompt(agentState *types.AgentState, previousResponses []string) (st
 		portfolioValue,
 		normalizePreviousResponses(previousResponses),
 		tradableSymbols,
+		formatLastError(lastError),
 	)
 
 	return userPrompt, nil
@@ -99,4 +101,11 @@ func prepHoldingsString(holdings []alpaca.Position) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+func formatLastError(lastError error) string {
+	if lastError == nil {
+		return "None"
+	}
+	return lastError.Error()
 }

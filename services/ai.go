@@ -32,8 +32,8 @@ func InitializeAI() {
 	log.Info().Msg("System prompt initialized")
 }
 
-func GetAITradeDecision(ctx context.Context, agentState *types.AgentState) (*types.TradeDecision, error) {
-	userPrompt, err := utils.GetUserPrompt(agentState, PreviousResponses)
+func GetAITradeDecision(ctx context.Context, agentState *types.AgentState, lastError error) (*types.TradeDecision, error) {
+	userPrompt, err := utils.GetUserPrompt(agentState, PreviousResponses, lastError)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user prompt: %w", err)
 	}
