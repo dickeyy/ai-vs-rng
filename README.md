@@ -76,8 +76,8 @@ go run . --dev
 Production:
 
 ```bash
-go build . -o cis-320
-./cis-320
+go build -o build/cis-320 .
+./build/cis-320
 ```
 
 ## License
