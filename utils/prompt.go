@@ -75,8 +75,6 @@ func GetUserPrompt(agentState *types.AgentState, previousResponses []string) (st
 		tradableSymbols,
 	)
 
-	println(userPrompt)
-
 	return userPrompt, nil
 }
 
