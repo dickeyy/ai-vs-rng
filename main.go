@@ -98,13 +98,13 @@ func initializeAgents(tradeBroker *broker.Broker) []types.Agent {
 	}
 	log.Info().Int("symbols_count", len(utils.Symbols)).Msg("Parsed symbols")
 
-	// rngAgent := agent.NewRNGAgent("RNG_Agent")
-	// rngAgent.SetBroker(tradeBroker)
+	rngAgent := agent.NewRNGAgent("RNG_Agent")
+	rngAgent.SetBroker(tradeBroker)
 
 	llmAgent := agent.NewLLMAgent("LLM_Agent")
 	llmAgent.SetBroker(tradeBroker)
 
-	agentsToStart := []types.Agent{llmAgent}
+	agentsToStart := []types.Agent{rngAgent, llmAgent}
 	return agentsToStart
 }
 
