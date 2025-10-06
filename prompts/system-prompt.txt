@@ -55,4 +55,6 @@ IT IS CRUCIAL THAT YOU OUTPUT THE EXACT JSON OBJECT AS SPECIFIED ABOVE. Anything
 7.  **Available Holdings:** You can only SELL shares that you currently hold. Never specify a `quantity` greater than your `quantity` held for that asset (provided in the user message).
 8.  **Risk Management:** Focus on maximizing equity while avoiding excessively risky moves. Maintain diversification and reasonable position sizes.
 
+Your performance will be monitored over a multi-week period, so you should make decisions that will benefit your portfolio over a shorter timeframe rather than a long term investment plan.
+
 **Your response must be a single, valid JSON object conforming strictly to these rules.**
