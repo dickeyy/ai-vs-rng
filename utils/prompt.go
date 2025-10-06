@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/dickeyy/cis-320/types"
 )
 
@@ -39,10 +40,7 @@ func GetUserPrompt(agentState *types.AgentState, previousResponses []string) (st
 		return "", fmt.Errorf("failed to marshal account state to JSON: %w", err)
 	}
 
-	holdingsJSON, err := json.MarshalIndent(agentState.Holdings, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal holdings to JSON: %w", err)
-	}
+	holdingsString := prepHoldingsString(agentState.Holdings)
 
 	// get the data we need
 	buyingPower := agentState.Account.BuyingPower.String()
@@ -70,12 +68,14 @@ func GetUserPrompt(agentState *types.AgentState, previousResponses []string) (st
 ---
 **Based on the above information and your directives, generate a single JSON object representing your optimal trading decision or no action.**`,
 		string(accountJSON),
-		string(holdingsJSON),
+		holdingsString,
 		buyingPower,
 		portfolioValue,
 		normalizePreviousResponses(previousResponses),
 		tradableSymbols,
 	)
+
+	println(userPrompt)
 
 	return userPrompt, nil
 }
@@ -85,4 +85,20 @@ func normalizePreviousResponses(previousResponses []string) string {
 		previousResponses = previousResponses[len(previousResponses)-50:]
 	}
 	return strings.Join(previousResponses, "\n")
+}
+
+func prepHoldingsString(holdings []alpaca.Position) string {
+	var b strings.Builder
+	for i, holding := range holdings {
+		b.WriteString(fmt.Sprintf("%d. Symbol: %s\n", i+1, holding.Symbol))
+		b.WriteString(fmt.Sprintf("Quantity: %s\n", holding.QtyAvailable))
+		b.WriteString(fmt.Sprintf("Market Value: %s\n", holding.MarketValue))
+		b.WriteString(fmt.Sprintf("Current Price: %s\n", holding.CurrentPrice))
+		b.WriteString(fmt.Sprintf("Last Day Price: %s\n", holding.LastdayPrice))
+		b.WriteString(fmt.Sprintf("Change Today %% (0-1): %s\n", holding.ChangeToday))
+		b.WriteString(fmt.Sprintf("Unrealized PL: %s\n", holding.UnrealizedPL))
+		b.WriteString(fmt.Sprintf("Cost Basis: %s\n", holding.CostBasis))
+		b.WriteString("\n")
+	}
+	return b.String()
 }

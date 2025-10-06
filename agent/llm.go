@@ -157,10 +157,17 @@ func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
 		return nil
 	}
 
+	tradeID := utils.GenerateOrderID()
+	err = services.SaveAIReasoning(a.Name, tradeDecision.Reasoning, tradeID, ctx)
+	if err != nil {
+		log.Error().Err(err).Str("agent", a.Name).Msg("Error saving AI reasoning")
+		return nil
+	}
+
 	switch tradeDecision.Action {
 	case "BUY":
 		return &types.Trade{
-			ID:        utils.GenerateOrderID(),
+			ID:        tradeID,
 			AlpacaID:  "",
 			Symbol:    tradeDecision.Symbol,
 			Amount:    tradeDecision.Amount,
@@ -170,7 +177,7 @@ func (a *LLMStrategist) makeDecision(ctx context.Context) *types.Trade {
 		}
 	case "SELL":
 		return &types.Trade{
-			ID:        utils.GenerateOrderID(),
+			ID:        tradeID,
 			AlpacaID:  "",
 			Symbol:    tradeDecision.Symbol,
 			Quantity:  tradeDecision.Quantity,

@@ -23,11 +23,12 @@ type Trade struct {
 }
 
 type TradeDecision struct {
-	Symbol   string           `json:"symbol"`   // stock ticker, e.g. "APPL"
-	Quantity *decimal.Decimal `json:"quantity"` // number of shares
-	Amount   *decimal.Decimal `json:"amount"`   // amount of the trade
-	Price    *decimal.Decimal `json:"price"`    // price per share
-	Action   string           `json:"action"`   // "BUY" or "SELL"
+	Symbol    string           `json:"symbol"`    // stock ticker, e.g. "APPL"
+	Quantity  *decimal.Decimal `json:"quantity"`  // number of shares
+	Amount    *decimal.Decimal `json:"amount"`    // amount of the trade
+	Price     *decimal.Decimal `json:"price"`     // price per share
+	Action    string           `json:"action"`    // "BUY" or "SELL"
+	Reasoning string           `json:"reasoning"` // reasoning for the trade decision
 }
 
 // Position represents a current position in a stock

@@ -50,3 +50,21 @@ func SaveTrade(trade *types.Trade, ctx context.Context) error {
 
 	return nil
 }
+
+func SaveAIReasoning(agentName string, reasoning string, tradeID string, ctx context.Context) error {
+	json, err := json.Marshal(map[string]string{
+		"trade_id":  tradeID,
+		"reasoning": reasoning,
+	})
+	if err != nil {
+		return err
+	}
+
+	// push a redis object key=tradeID, value=reasoning in a set called ai_reasoning
+	err = Redis.SAdd(ctx, fmt.Sprintf("ai_reasonings:%s", agentName), json).Err()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
