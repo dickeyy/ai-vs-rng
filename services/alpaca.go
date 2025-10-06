@@ -41,11 +41,12 @@ func PlaceOrder(trade *types.Trade, client *a.Client) (*types.Trade, error) {
 	switch trade.Action {
 	case "BUY":
 		order, err := client.PlaceOrder(a.PlaceOrderRequest{
-			Side:        a.Side("buy"),
-			Type:        a.OrderType("market"),
-			Notional:    trade.Amount,
-			Symbol:      trade.Symbol,
-			TimeInForce: a.TimeInForce("day"),
+			Side:          a.Side("buy"),
+			Type:          a.OrderType("market"),
+			Notional:      trade.Amount,
+			Symbol:        trade.Symbol,
+			TimeInForce:   a.TimeInForce("day"),
+			ClientOrderID: trade.ID,
 		})
 		if err != nil {
 			return nil, err
@@ -55,11 +56,12 @@ func PlaceOrder(trade *types.Trade, client *a.Client) (*types.Trade, error) {
 		trade.AlpacaID = order.ID
 	case "SELL":
 		order, err := client.PlaceOrder(a.PlaceOrderRequest{
-			Side:        a.Side("sell"),
-			Type:        a.OrderType("market"),
-			Qty:         trade.Quantity,
-			Symbol:      trade.Symbol,
-			TimeInForce: a.TimeInForce("day"),
+			Side:          a.Side("sell"),
+			Type:          a.OrderType("market"),
+			Qty:           trade.Quantity,
+			Symbol:        trade.Symbol,
+			TimeInForce:   a.TimeInForce("day"),
+			ClientOrderID: trade.ID,
 		})
 		if err != nil {
 			return nil, err
