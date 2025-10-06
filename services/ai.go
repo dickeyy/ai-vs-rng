@@ -76,6 +76,10 @@ func GetAITradeDecision(ctx context.Context, agentState *types.AgentState, lastE
 
 	PreviousResponses = append(PreviousResponses, content)
 
+	if utils.DevMode {
+		log.Debug().Any("trade_decision", tradeDecision).Msg("Trade decision")
+	}
+
 	return tradeDecision, nil
 }
 

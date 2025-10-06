@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -35,18 +34,12 @@ func GetUserPrompt(agentState *types.AgentState, previousResponses []string, las
 	agentState.Mu.Lock()
 	defer agentState.Mu.Unlock()
 
-	accountJSON, err := json.MarshalIndent(agentState.Account, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal account state to JSON: %w", err)
-	}
-
+	accountSummary := prepAccountSummary(agentState.Account)
 	holdingsString := prepHoldingsString(agentState.Holdings)
 
 	// get the data we need
 	buyingPower := agentState.Account.BuyingPower.String()
 	portfolioValue := agentState.Account.PortfolioValue.String()
-
-	tradableSymbols := strings.Join(Symbols, ", ")
 
 	userPrompt := fmt.Sprintf(`Analyze the current market context and your portfolio to make a trading decision.
 
@@ -64,18 +57,24 @@ func GetUserPrompt(agentState *types.AgentState, previousResponses []string, las
 - Available buying power: %s USD
 - Current total portfolio value: %s USD
 - List of your previous trades: %s
-- List of tradable symbols: %s
 - Last trade error: %s
 ---
 **Based on the above information and your directives, generate a single JSON object representing your optimal trading decision or no action.**`,
-		string(accountJSON),
+		accountSummary,
 		holdingsString,
 		buyingPower,
 		portfolioValue,
 		normalizePreviousResponses(previousResponses),
-		tradableSymbols,
 		formatLastError(lastError),
 	)
+
+	// write the user prompt to a file
+	if DevMode {
+		err := os.WriteFile("prompts/example-user-prompt.txt", []byte(userPrompt), 0644)
+		if err != nil {
+			return "", fmt.Errorf("failed to write user prompt to file: %w", err)
+		}
+	}
 
 	return userPrompt, nil
 }
@@ -90,17 +89,30 @@ func normalizePreviousResponses(previousResponses []string) string {
 func prepHoldingsString(holdings []alpaca.Position) string {
 	var b strings.Builder
 	for i, holding := range holdings {
-		b.WriteString(fmt.Sprintf("%d. Symbol: %s\n", i+1, holding.Symbol))
-		b.WriteString(fmt.Sprintf("Quantity: %s\n", holding.QtyAvailable))
-		b.WriteString(fmt.Sprintf("Market Value: %s\n", holding.MarketValue))
-		b.WriteString(fmt.Sprintf("Current Price: %s\n", holding.CurrentPrice))
-		b.WriteString(fmt.Sprintf("Last Day Price: %s\n", holding.LastdayPrice))
-		b.WriteString(fmt.Sprintf("Change Today %% (0-1): %s\n", holding.ChangeToday))
-		b.WriteString(fmt.Sprintf("Unrealized PL: %s\n", holding.UnrealizedPL))
-		b.WriteString(fmt.Sprintf("Cost Basis: %s\n", holding.CostBasis))
-		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("%d. %s: %s shares @ $%s ($%s value, P&L: $%s)\n",
+			i+1,
+			holding.Symbol,
+			holding.QtyAvailable,
+			holding.CurrentPrice,
+			holding.MarketValue,
+			holding.UnrealizedPL))
 	}
 	return b.String()
+}
+
+func prepAccountSummary(account alpaca.Account) string {
+	return fmt.Sprintf(`Total Portfolio Value: $%s
+Available Buying Power: $%s
+Cash Balance: $%s
+Long Positions Value: $%s
+Short Positions Value: $%s
+Account Status: %s`,
+		account.PortfolioValue,
+		account.BuyingPower,
+		account.Cash,
+		account.LongMarketValue,
+		account.ShortMarketValue,
+		account.Status)
 }
 
 func formatLastError(lastError error) string {
