@@ -1,0 +1,19 @@
+History:
+9/10 - Started development; Added symbol parsing to define tradable tickers.
+9/12 - Set up Docker; added broker completion callback and basic RNG buy; improved partial fill handling.
+9/13 - Standardized order ID storage and logs.
+9/14 - Completed RNG agent core (buy/sell); updated Alpaca client management.
+9/15 - Started AI integration.
+9/17 - Finished AI agent; added trade validation, nil checks, and log tracking; adjusted callback timings.
+9/18 - Ensured minimum values are at least 1.
+9/22 - Integrated Redis; switched ticker to wall-clock; enhanced logging, general fixes, code cleanup.
+9/24 - Added day-trade buying power checks and RNG bounds; reverted new validator.
+10/1 - Updated mutex locks to improve concurrency safety.
+10/6 - Updated user prompt and reasoning saving.
+
+Planned:
+- Refine system and user prompts to improve AI performance.
+- Add more testing to ensure the system is robust.
+- Add team-wide observability and metrics (dashboard).
+- Squash any bugs that come up.
+- Map out a pathway for more agents, trading strategies, historical market simulation, etc.
