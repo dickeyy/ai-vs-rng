@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/dickeyy/cis-320/types"
 	r "github.com/redis/go-redis/v9"
@@ -52,8 +53,10 @@ func SaveTrade(trade *types.Trade, ctx context.Context) error {
 }
 
 func SaveAIReasoning(agentName string, reasoning string, tradeID string, ctx context.Context) error {
+	now := time.Now().Format(time.RFC3339)
 	json, err := json.Marshal(map[string]string{
 		"trade_id":  tradeID,
+		"timestamp": now,
 		"reasoning": reasoning,
 	})
 	if err != nil {
