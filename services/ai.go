@@ -59,6 +59,7 @@ func GetAITradeDecision(ctx context.Context, agentState *types.AgentState, lastE
 				Content: openrouter.Content{Text: userPrompt},
 			},
 		},
+		// Temperature: 0.7,
 	}
 
 	res, err := AI.CreateChatCompletion(ctx, request)
